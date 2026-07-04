@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -49,6 +50,9 @@ type Props = {
   series: SeriesRow;
   qualityProfiles: QualityProfileRow[];
   bookSeries?: (BookSeriesRow & { memberCount: number }) | null;
+  /** Actual on-disk series dir derived from the tracked files. Falls back to
+   *  series.rootPath (which may be a stale conventional path) when absent. */
+  currentDir?: string;
 };
 
 function parseExtraSearchTerms(json: string): string[] {
@@ -59,15 +63,21 @@ function parseExtraSearchTerms(json: string): string[] {
   }
 }
 
-export function SettingsTab({ series, qualityProfiles, bookSeries = null }: Props): React.JSX.Element {
+export function SettingsTab({
+  series,
+  qualityProfiles,
+  bookSeries = null,
+  currentDir,
+}: Props): React.JSX.Element {
   const router = useRouter();
   const qc = useQueryClient();
   const [confirmText, setConfirmText] = useState('');
+  const [deleteFilesFromDisk, setDeleteFilesFromDisk] = useState(true);
   const titleForDelete = series.titleEnglish ?? series.titleRomaji ?? `series-${series.id}`;
   const form = useForm<Values>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      rootPath: series.rootPath,
+      rootPath: currentDir ?? series.rootPath,
       monitoring: series.monitoring,
       granularity: series.granularity,
       qualityProfileId: series.qualityProfileId,
@@ -126,8 +136,24 @@ export function SettingsTab({ series, qualityProfiles, bookSeries = null }: Prop
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiFetch(`/api/series/${series.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`delete failed (${res.status})`);
+      const res = await apiFetch(
+        `/api/series/${series.id}?deleteFiles=${deleteFilesFromDisk ? 'true' : 'false'}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok) {
+        // Failed file deletion (500) carries { error, detail } explaining which
+        // paths failed; a status-only toast would hide the reason.
+        let detail = '';
+        try {
+          const body = (await res.json()) as { error?: string; detail?: string };
+          detail = body.detail ?? body.error ?? '';
+        } catch {
+          /* non-JSON body: fall back to status only */
+        }
+        throw new Error(
+          detail ? `delete failed (${res.status}): ${detail}` : `delete failed (${res.status})`,
+        );
+      }
     },
     onSuccess: () => {
       toast.success(`Deleted "${titleForDelete}"`);
@@ -221,7 +247,14 @@ export function SettingsTab({ series, qualityProfiles, bookSeries = null }: Prop
         <Button type="submit" disabled={saveMutation.isPending}>
           {saveMutation.isPending ? 'Saving…' : 'Save'}
         </Button>
-        <AlertDialog>
+        <AlertDialog
+          onOpenChange={(open) => {
+            if (open) {
+              setConfirmText('');
+              setDeleteFilesFromDisk(true);
+            }
+          }}
+        >
           <AlertDialogTrigger asChild>
             <Button type="button" variant="destructive">
               Delete series
@@ -231,10 +264,20 @@ export function SettingsTab({ series, qualityProfiles, bookSeries = null }: Prop
             <AlertDialogHeader>
               <AlertDialogTitle>Delete this series?</AlertDialogTitle>
               <AlertDialogDescription>
-                This removes the series from bookkeeprr. Files on disk are not deleted. Type the
-                title to confirm: <strong>{titleForDelete}</strong>
+                {deleteFilesFromDisk
+                  ? 'This removes the series from bookkeeprr and deletes its folder and files from disk. Torrents for this series are removed from qBittorrent. '
+                  : 'This removes the series from bookkeeprr. Files on disk are not deleted. '}
+                Type the title to confirm: <strong>{titleForDelete}</strong>
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="delete-files-from-disk"
+                checked={deleteFilesFromDisk}
+                onCheckedChange={(v) => setDeleteFilesFromDisk(v === true)}
+              />
+              <Label htmlFor="delete-files-from-disk">Also delete files from disk</Label>
+            </div>
             <Input
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}

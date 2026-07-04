@@ -182,4 +182,17 @@ describe('AudioReader', () => {
     await fireEvent.press(screen.getByTestId('reader-back'));
     expect(onBack).toHaveBeenCalled();
   });
+
+  it('does not commit the pre-seek position 0 on mount (would wipe saved progress)', async () => {
+    // Opened with saved progress (sec 900). The native player reports position 0
+    // until the initial resume seek lands; committing that 0 would overwrite the
+    // saved position just by opening the reader.
+    mockUseReadingProgress.mockReturnValue({
+      progress: { ...manifest.progress, position: 900 / 3000, locator: { sec: 900 } },
+      commit,
+    });
+    await renderReader();
+    await flushAuth();
+    expect(commit).not.toHaveBeenCalled();
+  });
 });

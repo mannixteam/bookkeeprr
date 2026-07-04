@@ -37,7 +37,15 @@ export const CandidateSchema = z.object({
   year: z.number().int().nullable(),
   isbn: z.string().nullable(),
   coverUrl: z.string().nullable(),
-  source: z.enum(['openlibrary', 'googlebooks']),
+  source: z.enum(['openlibrary', 'googlebooks', 'itunes']),
+});
+
+/** A scan item recognised as a volume of a series already in the library. */
+export const ExistingSeriesMatchSchema = z.object({
+  seriesId: z.number().int().positive().describe('Id of the matching library series.'),
+  title: z.string().describe('Display title of the matching library series.'),
+  contentType: ContentTypeEnum.describe("The library series' content type (authoritative)."),
+  volume: z.number().int().describe('Volume number parsed from the item filename (defaults to 1).'),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,6 +56,9 @@ export const CandidateSchema = z.object({
 export const MatchedItemSchema = ScanItemSchema.extend({
   best: CandidateSchema.nullable().describe('Top-ranked metadata candidate, or null when no providers returned results.'),
   alternatives: z.array(CandidateSchema).describe('Up to 4 alternative candidates ranked below best.'),
+  existingSeries: ExistingSeriesMatchSchema.nullable().describe(
+    'Set when the item belongs to a series already in the library; the grid offers "add to that series" and no external match is run.',
+  ),
 });
 
 /** POST /api/library/import/scan 200 — list of untracked items with metadata suggestions. */
@@ -59,10 +70,19 @@ export const ImportScanResponse = z.object({
 // POST /api/library/import
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** One row submitted by the import grid confirm step. */
+/**
+ * One row submitted by the import grid confirm step. Exactly one of `match`
+ * (adopt via a metadata candidate — new or resolved series) or `existingSeries`
+ * (adopt into a series already in the library at the parsed volume) is set.
+ */
 export const AdoptRowSchema = z.object({
   item: ScanItemSchema,
-  match: CandidateSchema,
+  match: CandidateSchema.nullable().describe(
+    'Chosen metadata candidate. Null when `existingSeries` drives the adoption instead.',
+  ),
+  existingSeries: ExistingSeriesMatchSchema.nullable()
+    .optional()
+    .describe('Set to adopt the file into an existing library series at its parsed volume.'),
   monitor: z.boolean().describe('When true, monitoring is set to "all"; false → "none".'),
   qualityProfileId: z.number().int().positive(),
 });

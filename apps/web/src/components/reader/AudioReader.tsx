@@ -238,6 +238,26 @@ function AudioPlayer({
     [commit, totalSec],
   );
 
+  // --- Initial resume seek --------------------------------------------------
+  // Seeding trackIdx loads the right file, but a fresh <audio> element always
+  // starts at currentTime 0 — without an explicit seek, Play would restart the
+  // track from its beginning and the first timeupdate would commit that near-0
+  // position over the saved one. Reads globalRef inside the handler so a scrub
+  // made before metadata arrives wins over the persisted seed.
+  const initialSeekDoneRef = useRef(false);
+  useEffect(() => {
+    if (initialSeekDoneRef.current) return;
+    initialSeekDoneRef.current = true;
+    const audio = audioRef.current;
+    if (!audio) return;
+    const apply = () => {
+      const { offsetSec } = globalToTrack(timeline, globalRef.current);
+      if (offsetSec > 0) audio.currentTime = offsetSec;
+    };
+    if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) apply();
+    else setLoadedHandler(apply);
+  }, [timeline, setLoadedHandler]);
+
   // --- Seeking ------------------------------------------------------------
   // Move the global playhead to `sec`, switching the loaded track if needed.
   // `andPlay` keeps playback running after a same-track seek.

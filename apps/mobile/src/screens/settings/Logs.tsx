@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown } from 'lucide-react-native';
 import { ScreenContainer } from '@/components/ScreenContainer';
+import { BottomSheet } from '@/components/BottomSheet';
 import { InlineAlert } from '@/components/InlineAlert';
 import { useTokens } from '@/theme/ThemeProvider';
 import { text } from '@/theme/typography';
@@ -60,6 +61,7 @@ export default function Logs() {
   const list = files.data?.files ?? [];
 
   const [selected, setSelected] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // Auto-select the newest file (highest mtime) once the list loads.
   useEffect(() => {
@@ -145,11 +147,61 @@ export default function Logs() {
     );
   }
 
+  // Portrait: a dropdown (trigger + bottom-sheet picker) replaces the inline
+  // file list so the log entries get the full remaining height.
+  const selectedFile = list.find((f) => f.name === selected) ?? null;
+
   return (
     <ScreenContainer testID="screen-logs">
       {header}
-      <View style={{ paddingBottom: 8 }}>{fileList}</View>
+      <Pressable
+        testID="log-file-picker"
+        onPress={() => setPickerOpen(true)}
+        disabled={list.length === 0}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: t.border,
+          backgroundColor: t.surfaceMuted,
+          marginBottom: 10,
+        }}
+      >
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={[text.mono, { color: t.text }]} numberOfLines={1}>
+            {files.isLoading
+              ? 'Loading…'
+              : (selectedFile?.name ?? (list.length === 0 ? 'No log files' : 'Select a log file'))}
+          </Text>
+          {selectedFile ? (
+            <Text style={[text.monoSm, { color: t.textMuted }]}>{selectedFile.sizeBytes} B</Text>
+          ) : null}
+        </View>
+        <ChevronDown size={16} color={t.textMuted} strokeWidth={1.75} />
+      </Pressable>
       <View style={{ flex: 1 }}>{viewer}</View>
+
+      {pickerOpen ? (
+        <BottomSheet testID="log-file-sheet" onDismiss={() => setPickerOpen(false)}>
+          <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 8 }}>
+            {list.map((f) => (
+              <FileButton
+                key={f.name}
+                file={f}
+                active={selected === f.name}
+                onPress={() => {
+                  setSelected(f.name);
+                  setPickerOpen(false);
+                }}
+              />
+            ))}
+          </ScrollView>
+        </BottomSheet>
+      ) : null}
     </ScreenContainer>
   );
 }

@@ -5,6 +5,7 @@ import type { SeriesRow } from '@/server/db/schema';
 import { parseReleaseTitle } from '@/server/parser/release';
 import { titleMatches } from '@/server/matcher/titles';
 import { contentTypeSubdir } from '@/server/content-type/paths';
+import type { ContentType } from '@/server/content-type';
 import type { ScanItem } from '@/server/importer/import-scan';
 
 // ---------------------------------------------------------------------------
@@ -15,6 +16,17 @@ export type ExistingSeriesEntry = {
   series: SeriesRow;
   /** Volume numbers already owned (have a library_files row). */
   ownedVolumes: Set<number>;
+};
+
+/** A scan item recognised as belonging to a series already in the library. */
+export type ExistingSeriesMatch = {
+  seriesId: number;
+  /** The library series' display title (for the grid). */
+  title: string;
+  /** The library series' content type (authoritative — overrides the scan guess). */
+  contentType: ContentType;
+  /** The volume number parsed from the item filename (defaults to 1). */
+  volume: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -104,4 +116,44 @@ export function isScanItemAlreadyOwned(
     }
   }
   return false;
+}
+
+/**
+ * Find the existing library series a scan item belongs to — regardless of
+ * whether the item's volume is already owned. This is how a NEW volume of an
+ * already-present series (e.g. "Solo Leveling v08" when the library has
+ * volumes 1-7) is recognised and offered as "add to that series" instead of
+ * falling through to an external-provider "No match".
+ *
+ * Uses the same title/content-type logic as {@link isScanItemAlreadyOwned}
+ * (shared-directory content types match cross-type; author is not required
+ * because import filenames omit it). Returns the matched series + the parsed
+ * volume number, or null when no library series matches.
+ *
+ * Batch items (e.g. "v01-v03") return null: they can't map to a single volume.
+ */
+export function matchExistingSeries(
+  item: ScanItem,
+  existing: ExistingSeriesEntry[],
+): ExistingSeriesMatch | null {
+  const parsed = parseReleaseTitle(item.detectedTitle);
+  if (parsed.isBatch) return null;
+  const vol = parsed.targetLow ?? 1;
+
+  for (const entry of existing) {
+    if (contentTypeSubdir(entry.series.contentType) !== contentTypeSubdir(item.contentType)) {
+      continue;
+    }
+    if (titleMatches(parsed, entry.series, { requireAuthor: false })) {
+      const title =
+        entry.series.titleEnglish ?? entry.series.titleRomaji ?? item.detectedTitle;
+      return {
+        seriesId: entry.series.id,
+        title,
+        contentType: entry.series.contentType,
+        volume: vol,
+      };
+    }
+  }
+  return null;
 }

@@ -6,6 +6,11 @@ import { ReadarrAuthorPutBody } from '@/server/readarr/schemas';
 import { readarrError } from '@/server/readarr/auth';
 import { recordAuditEvent } from '@/server/audit/record';
 import { auditActor, auditContext } from '@/server/audit/request';
+import {
+  deleteSeriesFilesAndTorrents,
+  SeriesFileDeletionError,
+  type DeleteSeriesFilesResult,
+} from '@/server/series/delete-files';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,12 +30,32 @@ export async function DELETE(req: Request, ctx: Ctx): Promise<Response> {
   if (!/^\d+$/.test(id)) return readarrError(400, 'Invalid id');
   const series = await getSeries(Number(id));
   if (series === null) return readarrError(404, 'Author not found');
+
+  const deleteFiles = new URL(req.url).searchParams.get('deleteFiles') === 'true';
+  let disk: DeleteSeriesFilesResult = { filesDeleted: 0, torrentsDeleted: 0, errors: [] };
+  if (deleteFiles) {
+    try {
+      disk = await deleteSeriesFilesAndTorrents(series.id);
+    } catch (err) {
+      if (err instanceof SeriesFileDeletionError) {
+        return readarrError(500, `File deletion failed: ${err.failures.join('; ')}`);
+      }
+      throw err;
+    }
+  }
+
   await deleteSeries(series.id);
   await recordAuditEvent({
     actor: await auditActor(req),
     action: 'readarr.author_delete',
     target: { kind: 'author', id: String(series.id) },
-    metadata: { title: series.titleEnglish },
+    metadata: {
+      title: series.titleEnglish,
+      deleteFiles,
+      filesDeleted: disk.filesDeleted,
+      torrentsDeleted: disk.torrentsDeleted,
+      ...(disk.errors.length > 0 ? { errors: disk.errors } : {}),
+    },
     context: auditContext(req),
   });
   return new Response(null, { status: 204 });

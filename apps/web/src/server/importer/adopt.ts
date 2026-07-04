@@ -8,9 +8,15 @@
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '@/server/db/client';
 import { series } from '@/server/db/schema';
-import { insertSeries, updateSeries } from '@/server/db/series';
+import { getSeries, insertSeries, updateSeries } from '@/server/db/series';
 import { insertVolume, listVolumesBySeries } from '@/server/db/volumes';
-import { insertLibraryFile, getLibraryFileByPath } from '@/server/db/library-files';
+import {
+  insertLibraryFile,
+  getLibraryFileByPath,
+  listLibraryFilesBySeries,
+} from '@/server/db/library-files';
+import { getAllNamingTemplates } from '@/server/db/settings/naming';
+import { deriveCurrentSeriesDir } from './series-dir';
 import { enqueueJob } from '@/server/db/jobs';
 import { contentTypeSubdir, getMediaRoot } from '@/server/content-type/paths';
 import { ebookHydrateDescriptor } from '@/server/jobs/kinds/ebook-hydrate';
@@ -20,6 +26,7 @@ import { googleBooksHydrateDescriptor } from '@/server/jobs/kinds/googlebooks-hy
 import { sanitizeForFs, kickHydrate, enqueueReleaseSearchOnAdd } from './series-helpers';
 import type { ScanItem } from './import-scan';
 import type { Candidate } from './match-candidate';
+import type { ExistingSeriesMatch } from './owned-check';
 import type { ContentType } from '@/server/content-type';
 
 // ---------------------------------------------------------------------------
@@ -28,7 +35,10 @@ import type { ContentType } from '@/server/content-type';
 
 export type AdoptRow = {
   item: ScanItem;
-  match: Candidate;
+  /** Metadata candidate (new/resolved series). Null when `existingSeries` drives adoption. */
+  match: Candidate | null;
+  /** Set to adopt into a series already in the library at the parsed volume. */
+  existingSeries?: ExistingSeriesMatch | null;
   monitor: boolean;
   qualityProfileId: number;
 };
@@ -192,6 +202,27 @@ async function findExistingSeries(
   return rows[0]?.id ?? null;
 }
 
+/**
+ * Adoption tracks files in place, but the series row may carry a conventional
+ * `<root>/<Author>/<Title>` path from creation that doesn't exist on disk.
+ * Re-derive the series dir from the tracked files (same logic as the rename
+ * engine) and persist it so rootPath reflects where the files actually live.
+ */
+async function reconcileRootPath(seriesId: number): Promise<void> {
+  const s = await getSeries(seriesId);
+  if (!s) return;
+  const files = await listLibraryFilesBySeries(seriesId);
+  if (files.length === 0) return;
+  const templates = await getAllNamingTemplates(s.contentType);
+  const hasVolumeSubfolder = templates.volume_subfolder.trim().length > 0;
+  const derived = deriveCurrentSeriesDir(
+    files.map((f) => f.path),
+    hasVolumeSubfolder,
+    s.rootPath,
+  );
+  if (derived !== s.rootPath) await updateSeries(seriesId, { rootPath: derived });
+}
+
 // ---------------------------------------------------------------------------
 // Batch adopt
 // ---------------------------------------------------------------------------
@@ -226,25 +257,36 @@ export async function adoptImportRows(rows: AdoptRow[]): Promise<{
     try {
       const monitoring: 'all' | 'none' = row.monitor ? 'all' : 'none';
 
-      // ── 1. Resolve or create the series ──────────────────────────────────
-      let seriesId = await findExistingSeries(row.match, row.item.contentType);
-      if (seriesId === null) {
-        seriesId = await createSeriesFromMatch(row.match, row.item.contentType, {
-          qualityProfileId: row.qualityProfileId,
-          monitoring,
-        });
+      // ── 1. Resolve (or create) the series + target volume number ─────────
+      // Two adoption modes:
+      //  • existingSeries → adopt into that library series at the PARSED volume.
+      //    (A new volume of an already-present series, e.g. Solo Leveling v08.)
+      //  • match          → resolve/create a series from the metadata candidate
+      //    (single-book flow, volume 1).
+      let seriesId: number;
+      let volumeNumber: number;
+      if (row.existingSeries) {
+        seriesId = row.existingSeries.seriesId;
+        volumeNumber = row.existingSeries.volume;
+      } else if (row.match) {
+        seriesId =
+          (await findExistingSeries(row.match, row.item.contentType)) ??
+          (await createSeriesFromMatch(row.match, row.item.contentType, {
+            qualityProfileId: row.qualityProfileId,
+            monitoring,
+          }));
+        volumeNumber = 1;
+      } else {
+        throw new Error('adopt row has neither a match nor an existingSeries');
       }
       seriesIdSet.add(seriesId);
 
-      // ── 2. Ensure volume 1 exists ────────────────────────────────────────
+      // ── 2. Ensure the target volume exists ───────────────────────────────
       const vols = await listVolumesBySeries(seriesId);
-      let volumeId: number;
-      const vol1 = vols.find((v) => v.number === 1);
-      if (vol1) {
-        volumeId = vol1.id;
-      } else {
-        volumeId = await insertVolume({ seriesId, number: 1 });
-      }
+      const existingVol = vols.find((v) => v.number === volumeNumber);
+      const volumeId = existingVol
+        ? existingVol.id
+        : await insertVolume({ seriesId, number: volumeNumber });
 
       // ── 3. Adopt each file (idempotent) ──────────────────────────────────
       for (const filePath of row.item.files) {
@@ -262,17 +304,25 @@ export async function adoptImportRows(rows: AdoptRow[]): Promise<{
       }
 
       // ── 4. Reconcile monitoring ───────────────────────────────────────────
+      // Only for the match/create path. Adopting a new volume INTO an existing
+      // series must not silently flip that series' monitoring (the user may have
+      // set it deliberately); leave `existingSeries` adoptions untouched.
       // Intentionally normalizes any monitoring value (incl. 'future'/'missing') to the grid's binary all/none.
-      const seriesRow = await getDb()
-        .select({ monitoring: series.monitoring })
-        .from(series)
-        .where(eq(series.id, seriesId))
-        .limit(1);
-      const currentMonitoring = seriesRow[0]?.monitoring;
-      const targetMonitoring: 'all' | 'none' = row.monitor ? 'all' : 'none';
-      if (currentMonitoring !== targetMonitoring) {
-        await updateSeries(seriesId, { monitoring: targetMonitoring });
+      if (!row.existingSeries) {
+        const seriesRow = await getDb()
+          .select({ monitoring: series.monitoring })
+          .from(series)
+          .where(eq(series.id, seriesId))
+          .limit(1);
+        const currentMonitoring = seriesRow[0]?.monitoring;
+        const targetMonitoring: 'all' | 'none' = row.monitor ? 'all' : 'none';
+        if (currentMonitoring !== targetMonitoring) {
+          await updateSeries(seriesId, { monitoring: targetMonitoring });
+        }
       }
+
+      // ── 5. Reconcile rootPath with where the files actually live ─────────
+      await reconcileRootPath(seriesId);
     } catch (err) {
       skipped.push({
         path: row.item.path,

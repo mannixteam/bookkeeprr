@@ -4,7 +4,9 @@ import { searchMangaWithFallback } from '@/server/discover/manga-search';
 import { comicVineApiKeySetting, isComicVineConfigured } from '@/server/db/settings/comicvine';
 import { searchVolumes, ComicVineError } from '@/server/integrations/comicvine';
 import { searchBooks, OpenLibraryError } from '@/server/integrations/openlibrary';
-import { searchAudiobooks, AudnexError } from '@/server/integrations/audnex';
+// iTunes (keyless) is the working audiobook TITLE search. Audnex has no
+// title-search endpoint (/books?title= 404s) — it only resolves by ASIN.
+import { searchAudiobooks, ITunesError } from '@/server/integrations/itunes';
 import { SeriesSearchBody, SeriesSearchQuery } from '@/server/openapi/schemas/series';
 
 export const dynamic = 'force-dynamic';
@@ -62,10 +64,22 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   if (parsed.data.contentType === 'audiobook') {
     try {
-      const results = await searchAudiobooks(parsed.data.q);
+      // iTunes carries no Amazon ASIN, narrator, or runtime — null them. The
+      // create flow (AudiobookBody.asin optional) and audiobook_hydrate
+      // (iTunes-by-title) both handle a null asin.
+      const hits = await searchAudiobooks(parsed.data.q);
+      const results = hits.map((h) => ({
+        asin: null,
+        title: h.trackName ?? h.title,
+        author: h.author,
+        narrator: null,
+        releaseYear: h.releaseYear,
+        coverUrl: h.coverUrl,
+        runtimeMinutes: null,
+      }));
       return NextResponse.json({ contentType: 'audiobook', results });
     } catch (err) {
-      const message = err instanceof AudnexError ? err.message : (err as Error).message;
+      const message = err instanceof ITunesError ? err.message : (err as Error).message;
       return NextResponse.json({ error: message }, { status: 502 });
     }
   }

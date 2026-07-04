@@ -1,6 +1,7 @@
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useNavigationState } from '@react-navigation/native';
 import { TabletSidebar, type SidebarKey } from '@/components/TabletSidebar';
 import { useLayout } from '@/responsive/useLayout';
 import { useTokens } from '@/theme/ThemeProvider';
@@ -54,6 +55,29 @@ export function makeSidebarNavigate(
   };
 }
 
+// Minimal shape of a React Navigation state for walking the focused path.
+type FocusPathState =
+  | { index?: number; routes: { name: string; state?: FocusPathState }[] }
+  | undefined;
+
+// Walks the focused-route path (each navigator's routes[index], descending into
+// nested navigators) and reports whether the Reader screen is the currently
+// focused screen. Used to collapse the tablet sidebar inset on Android: there
+// the Reader's fullScreenModal is bounded to its navigator container and would
+// otherwise leave the sidebar showing, whereas on iOS it covers the whole
+// window. Only follows the focused index, so a Reader parked in a background tab
+// does not count.
+export function isReaderFocused(state: FocusPathState): boolean {
+  let s = state;
+  while (s && s.routes && s.routes.length) {
+    const route = s.routes[s.index ?? s.routes.length - 1];
+    if (!route) return false;
+    if (route.name === 'Reader') return true;
+    s = route.state;
+  }
+  return false;
+}
+
 // Renders the sidebar as the bottom-tab "tab bar" so it sits inside the
 // navigator subtree (giving navigation hooks the context they need) while
 // being absolutely positioned along the left edge. The Tab.Navigator screens
@@ -99,6 +123,16 @@ export function TabletAppShell() {
   const collapsed = layout.class === 'tablet-portrait';
   const sidebarWidth = collapsed ? 64 : 232;
 
+  // On Android the Reader's fullScreenModal is confined to its navigator
+  // container (the sidebar-inset content pane), so the sidebar stays visible
+  // beside it. Collapse the inset to 0 while the Reader is focused: the content
+  // pane goes full-width (letting the modal cover everything) and the sidebar,
+  // positioned at left:-sidebarWidth relative to that pane, slides off-screen.
+  // iOS already covers the whole window from its window-level modal, so this is
+  // Android-only and leaves the iOS layout untouched.
+  const readerFocused = useNavigationState((s) => isReaderFocused(s as FocusPathState));
+  const readerCovering = readerFocused && Platform.OS === 'android';
+
   const serverUrl = state.status === 'authenticated' ? state.creds.serverUrl : '';
   const footer: SidebarFooter = {
     version: AppConfig.versionLabel,
@@ -107,16 +141,18 @@ export function TabletAppShell() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg, paddingLeft: sidebarWidth }}>
+    <View style={{ flex: 1, backgroundColor: t.bg, paddingLeft: readerCovering ? 0 : sidebarWidth }}>
       <Tab.Navigator
-        tabBar={(props) => (
-          <SidebarTabBar
-            {...props}
-            collapsed={collapsed}
-            sidebarWidth={sidebarWidth}
-            footer={footer}
-          />
-        )}
+        tabBar={(props) =>
+          readerCovering ? null : (
+            <SidebarTabBar
+              {...props}
+              collapsed={collapsed}
+              sidebarWidth={sidebarWidth}
+              footer={footer}
+            />
+          )
+        }
         screenOptions={{ headerShown: false }}
       >
         <Tab.Screen name="Home" component={HomeStack} />

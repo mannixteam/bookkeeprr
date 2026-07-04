@@ -19,6 +19,8 @@ import { logger } from '@/server/logger';
 import { withWriteLock } from '@/server/db/write-lock';
 import { recordAuditEvent } from '@/server/audit/record';
 import { auditActor, auditContext } from '@/server/audit/request';
+import type { ScanProposal } from '@/server/scanner/match';
+import type { ContentType } from '@/server/content-type';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +33,9 @@ type AniListStash = {
   status?: 'releasing' | 'finished' | 'hiatus' | 'cancelled';
 } | null;
 
-type Stash = { aniListMatch?: AniListStash };
+// The library scan stashes a content-type-tagged `proposal`. Pre-upgrade manga
+// scans only stashed `aniListMatch`; keep reading it for back-compat.
+type Stash = { proposal?: ScanProposal | null; aniListMatch?: AniListStash };
 
 function parseStash(json: string): Stash {
   try {
@@ -39,6 +43,25 @@ function parseStash(json: string): Stash {
   } catch {
     return {};
   }
+}
+
+/** Normalize either stash form (new proposal, or legacy aniListMatch) to one proposal. */
+function stashProposal(stash: Stash): ScanProposal | null {
+  if (stash.proposal && stash.proposal.contentType) return stash.proposal;
+  const m = stash.aniListMatch;
+  if (m && typeof m.anilistId === 'number') {
+    return {
+      contentType: 'manga',
+      granularity: 'volume',
+      anilistId: m.anilistId,
+      titleEnglish: m.titleEnglish ?? null,
+      titleRomaji: m.titleRomaji ?? null,
+      titleNative: m.titleNative ?? null,
+      coverUrl: m.coverUrl ?? null,
+      status: m.status ?? undefined,
+    };
+  }
+  return null;
 }
 
 type RouteContext = { params: Promise<{ dirHash: string }> };
@@ -97,41 +120,35 @@ export async function POST(req: Request, ctx: RouteContext): Promise<NextRespons
   }
 
   let proposedSeriesId: number | null = null;
-  let stashAnilistId: number | null = null;
-  let stashTitleRomaji: string | null = null;
-  let stashTitleEnglish: string | null = null;
-  let stashTitleNative: string | null = null;
-  let stashCoverUrl: string | null = null;
-  let stashStatus: 'releasing' | 'finished' | 'hiatus' | 'cancelled' | null = null;
+  let proposal: ScanProposal | null = null;
 
   for (const r of groupRows) {
     if (r.proposedSeriesId !== null && proposedSeriesId === null)
       proposedSeriesId = r.proposedSeriesId;
-    const m = parseStash(r.parserDebugJson).aniListMatch ?? null;
-    if (m && typeof m.anilistId === 'number' && stashAnilistId === null) {
-      stashAnilistId = m.anilistId;
-      stashTitleRomaji = m.titleRomaji ?? null;
-      stashTitleEnglish = m.titleEnglish ?? null;
-      stashTitleNative = m.titleNative ?? null;
-      stashCoverUrl = m.coverUrl ?? null;
-      stashStatus = m.status ?? null;
-    }
+    if (proposal === null) proposal = stashProposal(parseStash(r.parserDebugJson));
   }
 
-  if (proposedSeriesId === null && stashAnilistId === null) {
+  if (proposedSeriesId === null && proposal === null) {
     return NextResponse.json({ error: 'match required before confirm' }, { status: 400 });
   }
 
   const directory = dirname(groupRows[0]!.filePath);
   const hasChapter = groupRows.some((r) => r.proposedChapter !== null);
-  const inferredGranularity: 'volume' | 'chapter' = hasChapter ? 'chapter' : 'volume';
+  // Comics are issue/chapter-based; otherwise honour the proposal's granularity,
+  // falling back to "chapter if any file parsed as a chapter, else volume".
+  const granularity: 'volume' | 'chapter' =
+    proposal?.contentType === 'comic'
+      ? 'chapter'
+      : (proposal?.granularity ?? (hasChapter ? 'chapter' : 'volume'));
 
   let seriesId: number;
   let createdNewSeries = false;
+  let createdContentType: ContentType = proposal?.contentType ?? 'manga';
   if (proposedSeriesId !== null) {
     seriesId = proposedSeriesId;
   } else {
-    const existing = await getSeriesByAniListId(stashAnilistId!);
+    const p = proposal!;
+    const existing = p.anilistId != null ? await getSeriesByAniListId(p.anilistId) : null;
     if (existing) {
       seriesId = existing.id;
     } else {
@@ -139,18 +156,26 @@ export async function POST(req: Request, ctx: RouteContext): Promise<NextRespons
       const groupId = await resolveImportGroup(groupRows[0]!);
       seriesId = await insertSeries({
         groupId,
-        anilistId: stashAnilistId!,
-        status: stashStatus ?? 'releasing',
+        contentType: p.contentType,
+        anilistId: p.anilistId ?? null,
+        openlibraryId: p.openlibraryId ?? null,
+        isbn: p.isbn ?? null,
+        asin: p.asin ?? null,
+        author: p.author ?? null,
+        startYear: p.startYear ?? null,
+        status: p.status ?? 'releasing',
         rootPath: directory,
         qualityProfileId: qpId,
-        titleEnglish: stashTitleEnglish,
-        titleRomaji: stashTitleRomaji,
-        titleNative: stashTitleNative,
-        coverUrl: stashCoverUrl,
+        titleEnglish: p.titleEnglish ?? null,
+        titleRomaji: p.titleRomaji ?? null,
+        titleNative: p.titleNative ?? null,
+        coverUrl: p.coverUrl ?? null,
+        totalVolumes: p.totalVolumes ?? null,
         monitoring: 'none',
-        granularity: inferredGranularity,
+        granularity,
       });
       createdNewSeries = true;
+      createdContentType = p.contentType;
     }
   }
 
@@ -184,7 +209,20 @@ export async function POST(req: Request, ctx: RouteContext): Promise<NextRespons
             .where(and(eq(volumes.seriesId, seriesId), eq(volumes.number, r.proposedVolume)))
             .limit(1)
             .all();
-          volumeId = v[0]?.id ?? null;
+          if (v[0]) {
+            volumeId = v[0].id;
+          } else {
+            // No volume row yet — the series was just created here, or metadata
+            // hydration hasn't populated volumes. Create it (as the release
+            // importer does) so the file LINKS to a volume. Without this every
+            // volume reads "missing" even though the file imported fine.
+            const ins = tx
+              .insert(volumes)
+              .values({ seriesId, number: r.proposedVolume })
+              .returning({ id: volumes.id })
+              .all();
+            volumeId = ins[0]?.id ?? null;
+          }
         } else if (r.proposedChapter !== null && /^\d+(?:\.\d+)?$/.test(r.proposedChapter)) {
           const ns = parseFloat(r.proposedChapter);
           const c = tx
@@ -228,8 +266,20 @@ export async function POST(req: Request, ctx: RouteContext): Promise<NextRespons
   );
 
   if (createdNewSeries && importedCount > 0) {
-    await enqueueJob('metadata_hydrate', { seriesId });
-    await enqueueJob('mangadex_chapter_sync', { seriesId });
+    // Hydrate from the source matching the content type — previously this always
+    // ran the manga pipeline, leaving ebook/audiobook/comic metadata empty.
+    if (createdContentType === 'manga') {
+      await enqueueJob('metadata_hydrate', { seriesId });
+      await enqueueJob('mangadex_chapter_sync', { seriesId });
+    } else if (createdContentType === 'light_novel') {
+      await enqueueJob('metadata_hydrate', { seriesId });
+    } else if (createdContentType === 'comic') {
+      await enqueueJob('comicvine_hydrate', { seriesId });
+    } else if (createdContentType === 'ebook') {
+      await enqueueJob('ebook_hydrate', { seriesId });
+    } else if (createdContentType === 'audiobook') {
+      await enqueueJob('audiobook_hydrate', { seriesId });
+    }
   }
 
   const actor = await auditActor(req);

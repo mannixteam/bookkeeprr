@@ -96,6 +96,20 @@ function Segmented<T extends string>({
   );
 }
 
+/** Format the build timestamp (ISO from BOOKKEEPRR_BUILT_AT) as a readable
+ *  local date-time; non-date values ("local") pass through unchanged. */
+function fmtBuiltAt(raw: string): string {
+  const ms = Date.parse(raw);
+  if (Number.isNaN(ms)) return raw;
+  return new Date(ms).toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   const t = useTokens();
   return (
@@ -186,7 +200,7 @@ function UpdatesAdminView() {
         <InfoRow label="App version" value={AppConfig.versionLabel} />
         <InfoRow label="Server version" value={overview.buildInfo.version} />
         <InfoRow label="Commit" value={overview.buildInfo.commit} />
-        <InfoRow label="Built" value={overview.buildInfo.builtAt} />
+        <InfoRow label="Built" value={fmtBuiltAt(overview.buildInfo.builtAt)} />
         <InfoRow label="Runtime" value={overview.buildInfo.runtime} />
         {overview.updateAvailable ? (
           <Text style={[text.bodySm, { color: t.primary }]} testID="updates-app-available">

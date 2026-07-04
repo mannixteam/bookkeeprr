@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { APP_VERSION } from '../../lib/version';
+import { useAppVersion } from './VersionProvider';
 
-const COMPOSE_YAML = `services:
+const composeYaml = (version: string): string => `services:
   bookkeeprr:
-    image: ghcr.io/paulcsiki/bookkeeprr:${APP_VERSION}
+    image: ghcr.io/paulcsiki/bookkeeprr:${version}
     container_name: bookkeeprr
     restart: unless-stopped
     ports:
@@ -60,11 +60,12 @@ const TrafficDots = (): React.JSX.Element => (
 );
 
 export function GetStarted(): React.JSX.Element {
+  const version = useAppVersion();
   const [active, setActive] = useState<StepKey>('install');
   const [copied, setCopied] = useState(false);
 
   function handleCopy(): void {
-    void navigator.clipboard.writeText(COMPOSE_YAML);
+    void navigator.clipboard.writeText(composeYaml(version));
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   }
@@ -128,7 +129,7 @@ export function GetStarted(): React.JSX.Element {
                 <span className="k">bookkeeprr</span>:{'\n'}
                 {'    '}
                 <span className="k">image</span>:{' '}
-                <span className="s">ghcr.io/paulcsiki/bookkeeprr:{APP_VERSION}</span>
+                <span className="s">ghcr.io/paulcsiki/bookkeeprr:{version}</span>
                 {'\n'}
                 {'    '}
                 <span className="k">container_name</span>: <span className="v">bookkeeprr</span>

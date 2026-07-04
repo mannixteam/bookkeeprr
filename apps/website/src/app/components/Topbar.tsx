@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { Logo } from '@bookkeeprr/ui';
-import { APP_VERSION } from '../../lib/version';
+import { getAppVersion } from '../../lib/version';
 
-export function Topbar(): React.JSX.Element {
+export async function Topbar(): Promise<React.JSX.Element> {
+  const version = await getAppVersion();
   return (
     <header className="topbar" id="topbar">
       <div className="wrap">
@@ -23,7 +24,7 @@ export function Topbar(): React.JSX.Element {
             rel="noopener"
           >
             <span className="dot"></span>
-            v{APP_VERSION}
+            v{version}
           </a>
           <Link href="/#start" className="btn btn-primary">
             Self-host

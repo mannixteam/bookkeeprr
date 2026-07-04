@@ -101,7 +101,13 @@ export function DeviceShowcase(): React.JSX.Element {
                   <span className="big">App Store</span>
                 </span>
               </a>
-              <a className="store-badge" href="#" aria-label="Get it on Google Play">
+              <a
+                className="store-badge"
+                href="https://play.google.com/store/apps/details?id=com.bookkeeprr.app"
+                target="_blank"
+                rel="noopener"
+                aria-label="Get it on Google Play"
+              >
                 <span className="ico">
                   <svg width="22" height="22" viewBox="0 0 24 24">
                     <path

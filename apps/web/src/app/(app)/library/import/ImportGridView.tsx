@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { ChevronDown, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
@@ -33,7 +34,7 @@ type Candidate = {
   year: number | null;
   isbn: string | null;
   coverUrl: string | null;
-  source: 'openlibrary' | 'googlebooks';
+  source: 'openlibrary' | 'googlebooks' | 'itunes';
 };
 
 type ScanItem = {
@@ -44,9 +45,18 @@ type ScanItem = {
   sizeBytes: number;
 };
 
+type ExistingSeriesMatch = {
+  seriesId: number;
+  title: string;
+  contentType: ContentType;
+  volume: number;
+};
+
 type MatchedItem = ScanItem & {
   best: Candidate | null;
   alternatives: Candidate[];
+  /** Set when the file belongs to a series already in the library. */
+  existingSeries: ExistingSeriesMatch | null;
 };
 
 type QualityProfile = {
@@ -65,12 +75,28 @@ type RowState = {
 // ── Matched Book cell (own hook scope for per-row search) ─────────────────────
 type MatchedBookCellProps = {
   item: MatchedItem;
+  /** The row's CURRENT content type (user-editable) — drives the live search. */
+  contentType: ContentType;
   value: Candidate | null;
   onChange: (c: Candidate | null) => void;
 };
 
+/** Discover sources that map onto the import API's Candidate schema. */
+const IMPORT_MATCH_SOURCES = new Set(['openlibrary', 'googlebooks', 'itunes']);
+
+/** Fixed-position placement for the dropdown so it can escape the table's
+ *  overflow-auto scroll container and never render off-screen. */
+type ListPlacement = {
+  left: number;
+  width: number;
+  maxHeight: number;
+  top?: number;
+  bottom?: number;
+};
+
 function MatchedBookCell({
   item,
+  contentType,
   value,
   onChange,
 }: MatchedBookCellProps): React.JSX.Element {
@@ -78,6 +104,8 @@ function MatchedBookCell({
   const [debouncedQ, setDebouncedQ] = useState('');
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const [placement, setPlacement] = useState<ListPlacement | null>(null);
 
   // Debounce the search query
   useEffect(() => {
@@ -85,12 +113,49 @@ function MatchedBookCell({
     return () => clearTimeout(id);
   }, [q]);
 
+  // Anchor the (portaled, position:fixed) dropdown to the trigger. Flips above
+  // the trigger when the space below the viewport edge is too small, and caps
+  // maxHeight to the available space so the list always fits the viewport.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPlacement(null);
+      return;
+    }
+    function update(): void {
+      const r = containerRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const margin = 8;
+      const spaceBelow = window.innerHeight - r.bottom - margin;
+      const spaceAbove = r.top - margin;
+      const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+      const maxHeight = Math.min(288, Math.max(openUp ? spaceAbove : spaceBelow, 96));
+      setPlacement({
+        left: r.left,
+        width: Math.max(r.width, 240),
+        maxHeight,
+        ...(openUp
+          ? { bottom: window.innerHeight - r.top + 4 }
+          : { top: r.bottom + 4 }),
+      });
+    }
+    update();
+    window.addEventListener('resize', update);
+    // Capture-phase: the table's overflow-auto container scrolls, not window.
+    document.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      document.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
   // Close on outside click — capture phase so sibling menus that stopPropagation
-  // still dismiss this dropdown (same pattern as NewGroupPopover).
+  // still dismiss this dropdown (same pattern as NewGroupPopover). The list is
+  // portaled to <body>, so check it separately from the trigger container.
   useEffect(() => {
     if (!open) return;
     function onDocClick(e: MouseEvent): void {
-      if (!containerRef.current?.contains(e.target as Node)) {
+      const t = e.target as Node;
+      if (!containerRef.current?.contains(t) && !listRef.current?.contains(t)) {
         setOpen(false);
         setQ('');
         setDebouncedQ('');
@@ -111,19 +176,20 @@ function MatchedBookCell({
   };
 
   const searchQ = useQuery<DiscoverResult[]>({
-    queryKey: ['import-book-search', debouncedQ],
+    queryKey: ['import-book-search', debouncedQ, contentType],
     enabled: debouncedQ.length >= 3,
     queryFn: async () => {
+      // Scope the search to the row's content type — the all-provider fan-out
+      // buries (and truncates away) audiobook hits behind manga/novel/ebook
+      // results, and an audiobook query needs iTunes, not the book databases.
       const r = await apiFetch(
-        `/api/discover/search?q=${encodeURIComponent(debouncedQ)}`,
+        `/api/discover/search?q=${encodeURIComponent(debouncedQ)}&contentType=${contentType}`,
       );
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = (await r.json()) as { results?: DiscoverResult[] };
-      // Only keep OL/GB candidates — those are the only sources the import
-      // API's Candidate schema accepts.
-      return (data.results ?? []).filter(
-        (r) => r.source === 'openlibrary' || r.source === 'googlebooks',
-      );
+      // Keep only the sources the import API's Candidate schema accepts
+      // (audnex/anilist/… results have no Candidate mapping).
+      return (data.results ?? []).filter((r) => IMPORT_MATCH_SOURCES.has(r.source));
     },
     staleTime: 30_000,
   });
@@ -149,7 +215,7 @@ function MatchedBookCell({
         year: r.year ?? null,
         isbn: r.isbn ?? null,
         coverUrl: r.coverUrl ?? null,
-        source: r.source as 'openlibrary' | 'googlebooks',
+        source: r.source as Candidate['source'],
       });
     });
     return result;
@@ -167,10 +233,21 @@ function MatchedBookCell({
     if (c.source === 'openlibrary') {
       return `https://openlibrary.org/works/${c.sourceId}`;
     }
+    if (c.source === 'itunes') {
+      // itunes: strip the 'itunes:' prefix the adapter prepends
+      const id = c.sourceId.startsWith('itunes:') ? c.sourceId.slice(7) : c.sourceId;
+      return `https://books.apple.com/audiobook/id${id}`;
+    }
     // googlebooks: strip the 'gb:' prefix the adapter prepends
     const id = c.sourceId.startsWith('gb:') ? c.sourceId.slice(3) : c.sourceId;
     return `https://books.google.com/books?id=${id}`;
   }
+
+  const sourceLabel: Record<Candidate['source'], string> = {
+    openlibrary: 'Open Library',
+    googlebooks: 'Google Books',
+    itunes: 'Apple Books',
+  };
 
   // When the user has typed ≥ 3 chars switch to live search results;
   // otherwise show the pre-populated allCandidates list.
@@ -183,7 +260,7 @@ function MatchedBookCell({
         year: r.year ?? null,
         isbn: r.isbn ?? null,
         coverUrl: r.coverUrl ?? null,
-        source: r.source as 'openlibrary' | 'googlebooks',
+        source: r.source as Candidate['source'],
       }))
     : allCandidates;
 
@@ -225,7 +302,7 @@ function MatchedBookCell({
               </span>
             ) : (
               <span className="shrink-0 font-mono text-[9px] uppercase text-muted-foreground">
-                {value.source === 'openlibrary' ? 'OL' : 'GB'}
+                {value.source === 'openlibrary' ? 'OL' : value.source === 'itunes' ? 'iT' : 'GB'}
               </span>
             )}
           </>
@@ -243,11 +320,22 @@ function MatchedBookCell({
         />
       </div>
 
-      {/* ── Dropdown ─────────────────────────────────────────────────────── */}
-      {open && (
+      {/* ── Dropdown — portaled + position:fixed so it escapes the table's
+             overflow-auto container and always fits the viewport ──────────── */}
+      {open &&
+        createPortal(
         <ul
+          ref={listRef}
           role="listbox"
-          className="absolute left-0 top-full z-50 mt-1 w-full min-w-[240px] overflow-hidden rounded-md border border-border bg-card py-1 shadow-md"
+          className="fixed z-50 overflow-y-auto rounded-md border border-border bg-card py-1 shadow-md"
+          style={{
+            left: placement?.left ?? 0,
+            width: placement?.width ?? 240,
+            maxHeight: placement?.maxHeight ?? 288,
+            top: placement?.top,
+            bottom: placement?.bottom,
+            visibility: placement ? 'visible' : 'hidden',
+          }}
         >
           {/* "No match (skip)" always at top */}
           <li>
@@ -308,14 +396,15 @@ function MatchedBookCell({
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="flex shrink-0 items-center px-2 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-                title={`View on ${c.source === 'openlibrary' ? 'Open Library' : 'Google Books'}`}
+                title={`View on ${sourceLabel[c.source]}`}
                 tabIndex={-1}
               >
                 <ExternalLink width={10} height={10} aria-hidden />
               </a>
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );
@@ -525,6 +614,9 @@ export function ImportGridView(): React.JSX.Element {
     () =>
       items.filter((item) => {
         if (!checkedPaths.has(item.path)) return false;
+        // A file matched to a series already in the library is importable even
+        // though it has no metadata Candidate — it adopts into that series.
+        if (item.existingSeries) return true;
         const s = getRowState(item);
         return s.chosenMatch !== null;
       }),
@@ -544,7 +636,10 @@ export function ImportGridView(): React.JSX.Element {
             files: item.files,
             sizeBytes: item.sizeBytes,
           },
-          match: s.chosenMatch!,
+          // Existing-series rows adopt into the matched series at the parsed
+          // volume; all others carry the chosen metadata candidate.
+          match: item.existingSeries ? null : s.chosenMatch,
+          existingSeries: item.existingSeries,
           monitor: s.monitor,
           qualityProfileId: s.qualityProfileId ?? defaultProfileId ?? 1,
         };
@@ -603,8 +698,9 @@ export function ImportGridView(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Table>
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="min-h-0 flex-1 overflow-auto">
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="w-8">
@@ -642,7 +738,10 @@ export function ImportGridView(): React.JSX.Element {
                     <span className="font-medium text-sm">
                       {item.detectedTitle}
                     </span>
-                    <span className="font-mono text-xs text-muted-foreground truncate max-w-xs">
+                    <span
+                      className="font-mono text-xs text-muted-foreground truncate max-w-xs"
+                      title={item.path}
+                    >
                       {item.path}
                     </span>
                   </div>
@@ -713,20 +812,35 @@ export function ImportGridView(): React.JSX.Element {
 
                 {/* Matched book */}
                 <TableCell>
-                  <MatchedBookCell
-                    item={item}
-                    value={s.chosenMatch}
-                    onChange={(c) => updateRow(item.path, { chosenMatch: c })}
-                  />
+                  {item.existingSeries ? (
+                    // Already in the library: adopt into the existing series at
+                    // the parsed volume — no metadata search offered.
+                    <div className="flex min-w-0 items-center gap-1.5 text-xs">
+                      <span className="min-w-0 flex-1 truncate text-foreground">
+                        Add to {item.existingSeries.title}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                        Vol {item.existingSeries.volume}
+                      </span>
+                    </div>
+                  ) : (
+                    <MatchedBookCell
+                      item={item}
+                      contentType={s.contentType}
+                      value={s.chosenMatch}
+                      onChange={(c) => updateRow(item.path, { chosenMatch: c })}
+                    />
+                  )}
                 </TableCell>
               </TableRow>
             );
           })}
         </TableBody>
-      </Table>
+        </Table>
+      </div>
 
-      {/* Bulk footer */}
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+      {/* Bulk footer — pinned to the bottom of the viewport; the list above scrolls. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
         <span className="text-sm font-medium text-muted-foreground mr-1">
           Apply to checked:
         </span>

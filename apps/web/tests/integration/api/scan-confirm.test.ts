@@ -157,7 +157,7 @@ describe('POST /api/scan/groups/[dirHash]/confirm', () => {
     expect(lf?.seriesId).toBe(h.seriesId);
   });
 
-  it('volume file with no matching volume row → volume_id null', async () => {
+  it('volume file with no matching volume row → auto-creates the volume and links', async () => {
     const f1 = await realFile(tmp, 'Existing v999.cbz');
     await insertScanMatch({
       filePath: f1,
@@ -169,7 +169,9 @@ describe('POST /api/scan/groups/[dirHash]/confirm', () => {
     const res = await POST(req(), { params: Promise.resolve({ dirHash: dirHash(tmp) }) });
     expect(res.status).toBe(200);
     const lf = await getLibraryFileByPath(f1);
-    expect(lf?.volumeId).toBeNull();
+    // The confirm route now creates volume 999 on the fly so the file LINKS
+    // instead of importing orphaned (which read as "missing" in the UI).
+    expect(lf?.volumeId).not.toBeNull();
   });
 
   it('skips duplicate library_files.path and counts it in skippedCount', async () => {

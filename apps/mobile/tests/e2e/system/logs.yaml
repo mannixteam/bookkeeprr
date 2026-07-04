@@ -18,4 +18,5 @@ env:
     centerElement: true
 - tapOn: { id: 'row-logs' }
 - assertVisible: { id: 'screen-logs' }
-- assertVisible: { id: 'log-file-bookkeeprr.log' }
+# The file list is a dropdown now — the picker trigger shows the selected file.
+- assertVisible: { id: 'log-file-picker' }

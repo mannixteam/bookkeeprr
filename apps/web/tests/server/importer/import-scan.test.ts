@@ -96,6 +96,56 @@ it('sums sizeBytes correctly for a multi-file audiobook folder', async () => {
   expect(ab!.files).toHaveLength(2);
 });
 
+it('keeps a dotted folder name intact (no fake extension stripping)', async () => {
+  // "H.P. Lovecraft - The Complete Omnibus" must NOT lose everything after the
+  // last dot — directories have no file extension to strip.
+  const abDir = join(bookDir, 'H.P. Lovecraft - The Complete Omnibus');
+  mkdirSync(abDir);
+  writeFileSync(join(abDir, 'part1.mp3'), 'audio');
+
+  const paths = emptyPaths();
+  paths.audiobook = { libraryRoot: bookDir, qbtCategory: '' };
+  await contentTypePathsSetting.set(paths);
+
+  const items = await scanLibraryRootsForImport();
+  const ab = items.filter((i) => i.contentType === 'audiobook');
+  expect(ab.map((i) => i.detectedTitle)).toContain('H P Lovecraft - The Complete Omnibus');
+});
+
+it('does not truncate a folder name at a codec tag like [EC-3]', async () => {
+  // The trailing-volume strip must not fire on a dash INSIDE a token —
+  // "[EC-3]" (E-AC-3) used to become "[EC", leaving an unbalanced bracket
+  // that poisoned the metadata query.
+  const abDir = join(
+    bookDir,
+    'Harry Potter and the Chamber of Secrets (Full-Cast Edition) [B0F14JPFQD] [EC-3]',
+  );
+  mkdirSync(abDir);
+  writeFileSync(join(abDir, 'book.m4b'), 'audio');
+
+  const paths = emptyPaths();
+  paths.audiobook = { libraryRoot: bookDir, qbtCategory: '' };
+  await contentTypePathsSetting.set(paths);
+
+  const items = await scanLibraryRootsForImport();
+  const ab = items.filter((i) => i.contentType === 'audiobook');
+  expect(ab.map((i) => i.detectedTitle)).toContain(
+    'Harry Potter and the Chamber of Secrets (Full-Cast Edition) [B0F14JPFQD] [EC-3]',
+  );
+});
+
+it('still strips a whitespace-separated trailing volume suffix (" - v02")', async () => {
+  writeFileSync(join(bookDir, 'Foo Saga - v02.epub'), 'epub');
+
+  const paths = emptyPaths();
+  paths.ebook = { libraryRoot: bookDir, qbtCategory: '' };
+  await contentTypePathsSetting.set(paths);
+
+  const items = await scanLibraryRootsForImport();
+  const ebooks = items.filter((i) => i.contentType === 'ebook');
+  expect(ebooks.map((i) => i.detectedTitle)).toContain('Foo Saga');
+});
+
 it('gracefully skips a libraryRoot that does not exist', async () => {
   const paths = emptyPaths();
   paths.ebook = { libraryRoot: '/nonexistent/path/xyz', qbtCategory: '' };

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { seedDb, type SeedHandle } from '../helpers/seed';
 import { adoptImportRows, type AdoptRow } from '@/server/importer/adopt';
-import { getSeries } from '@/server/db/series';
+import { getSeries, insertSeries } from '@/server/db/series';
 import { listLibraryFilesBySeries } from '@/server/db/library-files';
-import { listVolumesBySeries } from '@/server/db/volumes';
+import { listVolumesBySeries, insertVolume } from '@/server/db/volumes';
 import { getDb } from '@/server/db/client';
 import { series as seriesTable } from '@/server/db/schema';
 import { eq } from 'drizzle-orm';
@@ -59,6 +59,10 @@ describe('adoptImportRows — ebook', () => {
     expect(files).toHaveLength(1);
     expect(files[0]!.path).toBe('/books/Sabriel.epub');
     expect(files[0]!.sizeBytes).toBe(1_234_567);
+
+    // rootPath reflects where the adopted file actually lives, not the
+    // conventional <root>/<Author>/<Title> path from series creation.
+    expect(s?.rootPath).toBe('/books');
   });
 
   it('is idempotent — re-running adopts nothing new', async () => {
@@ -95,6 +99,126 @@ describe('adoptImportRows — ebook', () => {
     // Still exactly one library_file
     const files = await listLibraryFilesBySeries(first.seriesIds[0]!);
     expect(files).toHaveLength(1);
+  });
+});
+
+describe('adoptImportRows — existing series (new volume)', () => {
+  it('adopts a new volume into an existing series at the PARSED volume number', async () => {
+    // Arrange: an existing light_novel series that owns volume 1 only.
+    const seriesId = await insertSeries({
+      contentType: 'light_novel',
+      titleEnglish: 'Solo Leveling',
+      status: 'releasing',
+      rootPath: '/media/books/Solo Leveling',
+      qualityProfileId: h.qpId,
+      granularity: 'volume',
+      monitoring: 'all',
+    });
+    await insertVolume({ seriesId, number: 1 });
+
+    const row: AdoptRow = {
+      item: {
+        path: '/media/books/Solo Leveling/Solo Leveling v08 [Yen Press] [LuCaZ].epub',
+        detectedTitle: 'Solo Leveling v08 [Yen Press] [LuCaZ]',
+        contentType: 'light_novel',
+        files: ['/media/books/Solo Leveling/Solo Leveling v08 [Yen Press] [LuCaZ].epub'],
+        sizeBytes: 10_268_614,
+      },
+      match: null,
+      existingSeries: { seriesId, title: 'Solo Leveling', contentType: 'light_novel', volume: 8 },
+      monitor: false, // must NOT flip the existing series' monitoring
+      qualityProfileId: h.qpId,
+    };
+
+    // Act
+    const result = await adoptImportRows([row]);
+
+    // Assert: adopted into the SAME series (no new series created).
+    expect(result.imported).toBe(1);
+    expect(result.seriesIds).toEqual([seriesId]);
+
+    // Volume 8 was created (volume 1 still present).
+    const vols = await listVolumesBySeries(seriesId);
+    expect(vols.map((v) => v.number).sort((a, b) => a - b)).toEqual([1, 8]);
+    const vol8 = vols.find((v) => v.number === 8)!;
+
+    // The file is linked to volume 8, not volume 1.
+    const files = await listLibraryFilesBySeries(seriesId);
+    expect(files).toHaveLength(1);
+    expect(files[0]!.volumeId).toBe(vol8.id);
+    expect(files[0]!.path).toBe(row.item.files[0]);
+
+    // Monitoring untouched (still 'all' despite monitor:false on the row).
+    const s = await getSeries(seriesId);
+    expect(s?.monitoring).toBe('all');
+
+    // The file lives in the series' own folder, so rootPath is unchanged.
+    expect(s?.rootPath).toBe('/media/books/Solo Leveling');
+  });
+
+  it('reconciles a stale conventional rootPath with where the adopted files actually live', async () => {
+    // Arrange: a series added via the add flow — rootPath is the conventional
+    // <root>/<Author>/<Title> path, but no files exist there. The real files
+    // sit in a torrent-named sibling folder and are adopted in place.
+    const seriesId = await insertSeries({
+      contentType: 'audiobook',
+      titleEnglish: 'Sabriel',
+      author: 'Garth Nix',
+      status: 'finished',
+      rootPath: '/media/audiobooks/Garth Nix/Sabriel',
+      qualityProfileId: h.qpId,
+      granularity: 'volume',
+      monitoring: 'all',
+    });
+
+    const row: AdoptRow = {
+      item: {
+        path: '/media/audiobooks/Garth Nix - Sabriel/Garth Nix - Sabriel.m4b',
+        detectedTitle: 'Garth Nix - Sabriel',
+        contentType: 'audiobook',
+        files: ['/media/audiobooks/Garth Nix - Sabriel/Garth Nix - Sabriel.m4b'],
+        sizeBytes: 400_000_000,
+      },
+      match: null,
+      existingSeries: { seriesId, title: 'Sabriel', contentType: 'audiobook', volume: 1 },
+      monitor: true,
+      qualityProfileId: h.qpId,
+    };
+
+    const result = await adoptImportRows([row]);
+    expect(result.imported).toBe(1);
+
+    const s = await getSeries(seriesId);
+    expect(s?.rootPath).toBe('/media/audiobooks/Garth Nix - Sabriel');
+  });
+
+  it('is idempotent — re-adopting the same existing-series row adds nothing', async () => {
+    const seriesId = await insertSeries({
+      contentType: 'light_novel',
+      titleEnglish: 'Solo Leveling',
+      status: 'releasing',
+      rootPath: '/media/books/Solo Leveling',
+      qualityProfileId: h.qpId,
+      granularity: 'volume',
+      monitoring: 'all',
+    });
+    const row: AdoptRow = {
+      item: {
+        path: '/media/books/Solo Leveling/Solo Leveling v08.epub',
+        detectedTitle: 'Solo Leveling v08',
+        contentType: 'light_novel',
+        files: ['/media/books/Solo Leveling/Solo Leveling v08.epub'],
+        sizeBytes: 100,
+      },
+      match: null,
+      existingSeries: { seriesId, title: 'Solo Leveling', contentType: 'light_novel', volume: 8 },
+      monitor: true,
+      qualityProfileId: h.qpId,
+    };
+
+    expect((await adoptImportRows([row])).imported).toBe(1);
+    expect((await adoptImportRows([row])).imported).toBe(0);
+    expect(await listLibraryFilesBySeries(seriesId)).toHaveLength(1);
   });
 });
 

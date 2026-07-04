@@ -9,6 +9,8 @@ import { getActor } from '@/server/auth/get-actor';
 import { listReadChapterIds } from '@/server/db/chapter-read';
 import { getSeriesResume, getVolumeReadStates } from '@/server/db/reading-progress';
 import { getBookSeriesForTitle } from '@/server/db/book-series';
+import { getAllNamingTemplates } from '@/server/db/settings/naming';
+import { deriveCurrentSeriesDir } from '@/server/importer/series-dir';
 import { SeriesDetail } from './SeriesDetail';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +39,17 @@ export default async function SeriesDetailPage({ params }: Props): Promise<React
 
   const isAdmin = actor?.role === 'admin';
 
+  // The Settings tab shows where the series folder ACTUALLY is. rootPath can
+  // be a stale conventional path when files were adopted in place elsewhere,
+  // so derive the dir from the tracked files (same logic as the rename engine)
+  // and fall back to rootPath only when the series has no files.
+  const templates = await getAllNamingTemplates(series.contentType);
+  const currentDir = deriveCurrentSeriesDir(
+    libraryFiles.map((f) => f.path),
+    templates.volume_subfolder.trim().length > 0,
+    series.rootPath,
+  );
+
   const readChapterIds = actor ? await listReadChapterIds(actor.userId, seriesId) : new Set<number>();
   const resume = actor ? await getSeriesResume(actor.userId, seriesId) : null;
   const volumeReadStates = actor
@@ -56,6 +69,7 @@ export default async function SeriesDetailPage({ params }: Props): Promise<React
       resumeReadableKey={resume?.readableKey ?? null}
       volumeReadStates={Array.from(volumeReadStates.entries())}
       bookSeries={bookSeries}
+      currentDir={currentDir}
     />
   );
 }

@@ -6,7 +6,11 @@
  * These tests exercise the pure function in isolation — no DB needed.
  */
 import { describe, it, expect } from 'vitest';
-import { isScanItemAlreadyOwned, type ExistingSeriesEntry } from '@/server/importer/owned-check';
+import {
+  isScanItemAlreadyOwned,
+  matchExistingSeries,
+  type ExistingSeriesEntry,
+} from '@/server/importer/owned-check';
 import type { ScanItem } from '@/server/importer/import-scan';
 import type { SeriesRow } from '@/server/db/schema';
 
@@ -207,5 +211,56 @@ describe('isScanItemAlreadyOwned', () => {
     // "v01-v03" is a batch — volume 1 is owned but v02+v03 may not be → keep
     const item = makeItem({ detectedTitle: 'Solo Leveling v01-v03', contentType: 'manga' });
     expect(isScanItemAlreadyOwned(item, [makeEntry(s, [1])])).toBe(false);
+  });
+});
+
+describe('matchExistingSeries', () => {
+  it('matches a NEW (unowned) volume of an existing series and returns the parsed volume', () => {
+    const s = makeSeries({
+      id: 3,
+      titleEnglish: 'Solo Leveling',
+      author: 'Chugong',
+      contentType: 'light_novel',
+    });
+    const v8 = makeItem({
+      detectedTitle: 'Solo Leveling v08 [Yen Press] [LuCaZ]',
+      contentType: 'light_novel',
+    });
+    // Library owns v1-7 only; v8 is not owned but still belongs to the series.
+    const match = matchExistingSeries(v8, [makeEntry(s, [1, 2, 3, 4, 5, 6, 7])]);
+    expect(match).toEqual({
+      seriesId: 3,
+      title: 'Solo Leveling',
+      contentType: 'light_novel',
+      volume: 8,
+    });
+  });
+
+  it('matches cross-type across the shared "books" dir (ebook item ↔ light_novel series)', () => {
+    const s = makeSeries({ id: 3, titleEnglish: 'Solo Leveling', contentType: 'light_novel' });
+    const item = makeItem({ detectedTitle: 'Solo Leveling v08', contentType: 'ebook' });
+    const match = matchExistingSeries(item, [makeEntry(s, [1])]);
+    // The library series' content type wins, not the scan guess.
+    expect(match?.seriesId).toBe(3);
+    expect(match?.contentType).toBe('light_novel');
+    expect(match?.volume).toBe(8);
+  });
+
+  it('returns null when no library series matches the title', () => {
+    const s = makeSeries({ titleEnglish: 'Berserk', contentType: 'manga' });
+    const item = makeItem({ detectedTitle: 'Solo Leveling v08', contentType: 'manga' });
+    expect(matchExistingSeries(item, [makeEntry(s, [1])])).toBeNull();
+  });
+
+  it('treats a no-volume single book as volume 1', () => {
+    const s = makeSeries({ titleEnglish: 'My Standalone Novel', contentType: 'ebook' });
+    const item = makeItem({ detectedTitle: 'My Standalone Novel', contentType: 'ebook' });
+    expect(matchExistingSeries(item, [makeEntry(s, [])])?.volume).toBe(1);
+  });
+
+  it('returns null for a batch item (cannot map to one volume)', () => {
+    const s = makeSeries({ titleEnglish: 'Solo Leveling', contentType: 'manga' });
+    const item = makeItem({ detectedTitle: 'Solo Leveling v01-v03', contentType: 'manga' });
+    expect(matchExistingSeries(item, [makeEntry(s, [1])])).toBeNull();
   });
 });

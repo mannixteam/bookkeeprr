@@ -69,15 +69,22 @@ export async function buildManifest(
   if (resolved.format === 'audio') {
     const audioFiles = resolved.audioFiles ?? [];
     const builtTracks: NonNullable<ReaderManifest['tracks']> = [];
+    // Embedded chapter markers (m4b QuickTime chapter track / Nero chpl),
+    // aggregated along the timeline: each file's marks are shifted by the running
+    // duration sum so a multi-part audiobook's per-file chapters line up too.
+    const embedded: ChapterMark[] = [];
     let sum = 0;
     for (let i = 0; i < audioFiles.length; i++) {
       const f = audioFiles[i]!;
-      const { durationSec } = await describeAudio(f.path);
-      if (durationSec !== null) sum += durationSec;
+      const info = await describeAudio(f.path);
+      for (const ch of info.chapters) {
+        embedded.push({ title: ch.title, startSec: sum + ch.startSec });
+      }
+      if (info.durationSec !== null) sum += info.durationSec;
       builtTracks.push({
         idx: i,
         fileId: f.id,
-        durationSec,
+        durationSec: info.durationSec,
         title: `Track ${i + 1}`,
       });
     }
@@ -97,6 +104,10 @@ export async function buildManifest(
         : dbChapters.filter((c) => c.volumeId === resolved.volumeId);
     if (volChapters.length > 0) {
       chapters = volChapters.map((c) => ({ title: c.title ?? c.numberText }));
+    } else if (embedded.length > 0) {
+      // Embedded m4b chapters (a single interactive m4b, or per-file marks across
+      // a multi-part audiobook) — real chapter navigation instead of per-file.
+      chapters = embedded;
     } else {
       // One chapter per track: stamp each chapter's start time from the running
       // sum of track durations so the reader shows each track's REAL length

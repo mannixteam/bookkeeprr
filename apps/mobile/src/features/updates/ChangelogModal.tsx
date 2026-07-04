@@ -1,4 +1,4 @@
-import { View, Text, ScrollView } from 'react-native';
+import { Modal, View, Text, ScrollView } from 'react-native';
 import { useTokens } from '@/theme/ThemeProvider';
 import { text } from '@/theme/typography';
 import { Button } from '@/components/Button';
@@ -17,14 +17,15 @@ interface Props {
 export function ChangelogModal({ entry, previousVersion, onDismiss }: Props) {
   const t = useTokens();
   return (
+    // A native Modal, NOT an absolutely-positioned View: the trigger mounts
+    // early in the Library screen tree, and RN paints later siblings (AppBar,
+    // the list) OVER earlier ones — the sheet interleaved with page content.
+    // Modal escapes layout/paint order and also covers the tab bar.
+    <Modal transparent statusBarTranslucent animationType="fade" onRequestClose={onDismiss}>
     <View
       testID="changelog-modal"
       style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        flex: 1,
         backgroundColor: SCRIM_COLOR,
         justifyContent: 'flex-end',
       }}
@@ -121,5 +122,6 @@ export function ChangelogModal({ entry, previousVersion, onDismiss }: Props) {
         </View>
       </View>
     </View>
+    </Modal>
   );
 }

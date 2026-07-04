@@ -228,3 +228,30 @@ it('a valid password POSTs newPassword and mustChangePassword', async () => {
     expect(body).toEqual({ newPassword: 'password1', mustChangePassword: true }),
   );
 });
+
+it('hides role/disable/delete for the signed-in user; reset password stays', async () => {
+  server.use(
+    adminMe(),
+    http.get('https://srv/api/users', () =>
+      HttpResponse.json({
+        users: [
+          {
+            id: 1,
+            username: 'admin',
+            email: null,
+            role: 'admin',
+            source: 'local',
+            disabled: false,
+            createdAt: '2026-02-12T00:00:00Z',
+            lastLoginAt: null,
+          },
+        ],
+      }),
+    ),
+  );
+  await openActions(1);
+  expect(screen.getByTestId('ua-reset')).toBeTruthy();
+  expect(screen.queryByTestId('ua-role')).toBeNull();
+  expect(screen.queryByTestId('ua-disabled')).toBeNull();
+  expect(screen.queryByTestId('ua-delete')).toBeNull();
+});

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Palette, LogOut, Bell, MonitorSmartphone, ShieldCheck } from 'lucide-react-native';
+import { ArrowLeft, Palette, LogOut, Bell, MonitorSmartphone, ShieldCheck } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Avatar } from '@/components/Avatar';
@@ -56,6 +56,14 @@ export function MobAccount() {
         style={{ flex: 1, backgroundColor: t.bg }}
         contentContainerStyle={{ padding: 16, paddingTop: insets.top + 12, paddingBottom: 40 }}
       >
+        {/* Header — same back-arrow pattern as the other settings screens */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={8} testID="btn-back-account">
+            <ArrowLeft size={22} color={t.text} strokeWidth={1.75} />
+          </Pressable>
+          <Text style={[text.displayMd, { flex: 1, color: t.text }]}>Account</Text>
+        </View>
+
         {/* Profile hero */}
         <View
           style={{

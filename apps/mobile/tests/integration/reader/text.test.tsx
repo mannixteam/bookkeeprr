@@ -362,6 +362,13 @@ describe('pdf', () => {
     expect(source.uri).toContain('/api/reader/pdf/8');
     expect(source.uri.startsWith('https://srv.example/')).toBe(true);
     expect(source.headers.Authorization).toBe('Bearer tok-123');
+    // Force cert validation: react-native-pdf's default trustAllCerts=true routes
+    // the Android download through react-native-blob-util's unsafe OkHttp client,
+    // which throws "Use of own trust manager but none defined" on blob-util 0.24.x
+    // and silently fails the load (blank reader / stuck at "1/1").
+    expect(pdf.props.trustAllCerts).toBe(false);
+    // The authoritative native page count is wired so a bad server count heals.
+    expect(typeof pdf.props.onLoadComplete).toBe('function');
   });
 
   it('commits the new position on a page change', async () => {
@@ -374,5 +381,7 @@ describe('pdf', () => {
     });
     // page 2 of 2 → 0-based page 1 → position 1
     expect(commit).toHaveBeenLastCalledWith(1, { page: 1 });
+    // The commit position uses the total react-native-pdf reports (2), NOT the
+    // server's manifest.pageCount — proving the native count drives progress.
   });
 });

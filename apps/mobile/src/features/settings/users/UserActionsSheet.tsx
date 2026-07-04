@@ -50,8 +50,20 @@ function ActionRow({
  * Per-user action sheet: reset password, toggle role, enable/disable, delete.
  * Server 409s (last-admin, self-disable, self-delete) carry `{message}`, which
  * we surface inline. Delete requires a confirming second tap.
+ *
+ * When the sheet targets the CURRENT user (`selfId`), the destructive actions
+ * (role change / disable / delete) are hidden entirely — the server rejects
+ * them with 409 anyway; reset password stays available.
  */
-export function UserActionsSheet({ user, onDone }: { user: UserRow; onDone: () => void }) {
+export function UserActionsSheet({
+  user,
+  selfId,
+  onDone,
+}: {
+  user: UserRow;
+  selfId: number | null;
+  onDone: () => void;
+}) {
   const t = useTokens();
   const update = useUpdateUser();
   const remove = useDeleteUser();
@@ -120,6 +132,7 @@ export function UserActionsSheet({ user, onDone }: { user: UserRow; onDone: () =
           testID="ua-reset"
           onPress={() => setShowReset(true)}
         />
+        {user.id === selfId ? null : (
         <View style={{ opacity: online ? 1 : 0.5 }}>
           <ActionRow
             icon={user.role === 'admin' ? ShieldOff : ShieldCheck}
@@ -147,6 +160,7 @@ export function UserActionsSheet({ user, onDone }: { user: UserRow; onDone: () =
             })}
           />
         </View>
+        )}
       </View>
     </BottomSheet>
   );

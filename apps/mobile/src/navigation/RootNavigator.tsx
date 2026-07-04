@@ -7,6 +7,7 @@ import type { RootStackParamList } from './types';
 import { OnboardingStack } from './OnboardingStack';
 import { AppTabs } from './AppTabs';
 import { useAuth } from '@/auth/AuthContext';
+import { useTokens } from '@/theme/ThemeProvider';
 import { useLayout } from '@/responsive/useLayout';
 import { TabletAppShell } from '@/components/TabletAppShell';
 import { InAppBanner } from '@/push/InAppBanner';
@@ -44,6 +45,7 @@ const linking: LinkingOptions<RootStackParamList> = {
 
 export function RootNavigator() {
   const { state } = useAuth();
+  const t = useTokens();
   const navRef = useNavigationContainerRef<RootStackParamList>();
 
   // When the session ends — a manual sign-out, or a 401/403 that clears the
@@ -63,7 +65,12 @@ export function RootNavigator() {
     <ErrorBoundary>
       <NavigationContainer ref={navRef} linking={linking}>
         <View style={{ flex: 1 }}>
-          <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
+          {/* contentStyle: keep the native card themed so transitions never
+              reveal the system default (white in light mode) behind screens. */}
+          <Stack.Navigator
+            screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg } }}
+            initialRouteName={initialRoute}
+          >
             <Stack.Screen name="Onboarding" component={OnboardingStack} />
             <Stack.Screen name="App" component={AppShell} />
           </Stack.Navigator>

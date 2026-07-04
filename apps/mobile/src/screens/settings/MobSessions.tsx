@@ -4,13 +4,13 @@
 // The current session is marked with a "current" badge and cannot be revoked.
 // Other sessions can be revoked via DELETE /api/auth/sessions/:id.
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Monitor, Trash2 } from 'lucide-react-native';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { useAuth } from '@/auth/AuthContext';
-import { createApiClient } from '@/api/client';
+import { createApiClient, ApiError } from '@/api/client';
 import { useTokens } from '@/theme/ThemeProvider';
 import { fonts, text } from '@/theme/typography';
 import { withAlpha } from '@/theme/color';
@@ -56,10 +56,16 @@ export function MobSessions() {
   const online = useIsOnline();
   const { gate } = useOnlineGate();
 
-  const client =
-    state.status === 'authenticated'
-      ? createApiClient(state.creds, { onAuthFail: () => signOut() })
-      : null;
+  // Memoized so the screen's own state updates don't rebuild the client —
+  // a fresh client identity re-arms the focus effect below and refires the
+  // fetch mid-flight (the "two error alerts" bug).
+  const client = useMemo(
+    () =>
+      state.status === 'authenticated'
+        ? createApiClient(state.creds, { onAuthFail: () => signOut() })
+        : null,
+    [state, signOut],
+  );
 
   const loadSessions = useCallback(async () => {
     if (!client) return;
@@ -68,8 +74,12 @@ export function MobSessions() {
       const j = await client.get<{ sessions: SessionEntry[] }>('/api/auth/sessions');
       setSessions(j.sessions);
       setLoaded(true);
-    } catch {
-      Alert.alert('Error', 'Could not load sessions');
+    } catch (err) {
+      // A 401 already signed us out via onAuthFail — the reset to onboarding
+      // IS the UX; an extra alert would float over the welcome screen.
+      if (!(err instanceof ApiError && err.status === 401)) {
+        Alert.alert('Error', 'Could not load sessions');
+      }
     } finally {
       setLoading(false);
     }
@@ -80,6 +90,41 @@ export function MobSessions() {
       void loadSessions();
     }, [loadSessions]),
   );
+
+  const otherSessions = sessions.filter((s) => !s.current);
+  const [revokingAll, setRevokingAll] = useState(false);
+
+  async function revokeAllOthers(): Promise<void> {
+    Alert.alert(
+      'Sign out of all other sessions',
+      `This signs out ${otherSessions.length} session${otherSessions.length === 1 ? '' : 's'}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            if (!client) return;
+            setRevokingAll(true);
+            try {
+              for (const s of otherSessions) {
+                await client.delete(`/api/auth/sessions/${s.id}`);
+              }
+              await loadSessions();
+            } catch (err) {
+              // A 401 means THIS device's session died mid-flight — onAuthFail
+              // has already signed out and reset to the login screen.
+              if (!(err instanceof ApiError && err.status === 401)) {
+                Alert.alert('Error', 'Could not sign out of all other sessions');
+              }
+            } finally {
+              setRevokingAll(false);
+            }
+          },
+        },
+      ],
+    );
+  }
 
   async function revokeSession(id: string): Promise<void> {
     Alert.alert(
@@ -96,8 +141,10 @@ export function MobSessions() {
             try {
               await client.delete(`/api/auth/sessions/${id}`);
               setSessions((prev) => prev.filter((s) => s.id !== id));
-            } catch {
-              Alert.alert('Error', 'Could not revoke session');
+            } catch (err) {
+              if (!(err instanceof ApiError && err.status === 401)) {
+                Alert.alert('Error', 'Could not revoke session');
+              }
             } finally {
               setRevoking(null);
             }
@@ -126,8 +173,31 @@ export function MobSessions() {
             <ArrowLeft size={22} color={t.text} strokeWidth={1.75} />
           </Pressable>
           <Text style={[text.displayMd, { flex: 1, color: t.text }]}>Sessions</Text>
-          {sessions.length > 0 ? (
-            <Text style={[text.monoSm, { color: t.textMuted }]}>{sessions.length}</Text>
+          {otherSessions.length > 0 ? (
+            <Pressable
+              testID="btn-signout-others"
+              onPress={gate(() => {
+                if (!revokingAll) void revokeAllOthers();
+              })}
+              disabled={revokingAll}
+              hitSlop={8}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: withAlpha(t.err, 0.5),
+                opacity: online ? 1 : 0.5,
+              }}
+            >
+              {revokingAll ? (
+                <ActivityIndicator size="small" color={t.err} />
+              ) : (
+                <Text style={{ fontFamily: fonts.sans.medium, fontSize: 12, color: t.err }}>
+                  Sign out of all other sessions
+                </Text>
+              )}
+            </Pressable>
           ) : null}
         </View>
 

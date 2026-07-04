@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { basename } from 'node:path';
 import { walk } from '@/server/scanner/walk';
 import { parseFilename } from '@/server/parser/filename';
-import { searchMangaCached } from '@/server/integrations/anilist/cache';
+import { contentTypeForFiles } from '@/server/scanner/formats';
+import { proposeForDirectory, type ScanProposal } from '@/server/scanner/match';
 import { getSeriesByAniListId } from '@/server/db/series';
 import {
   getScanMatchByPath,
@@ -11,7 +12,6 @@ import {
 } from '@/server/db/scan-matches';
 import { getAllLibraryRoots } from '@/server/content-type/paths';
 import { logger } from '@/server/logger';
-import type { SearchHit } from '@/server/integrations/anilist/schemas';
 import type { JobKindDescriptor } from '../types';
 import { DEFAULT_TIMEOUT_MS } from '../types';
 
@@ -50,7 +50,7 @@ export const libraryScanDescriptor: JobKindDescriptor<
       (r) => !deduped.some((other) => other !== r && r.startsWith(other.replace(/\/+$/, '') + '/')),
     );
 
-    const dirCache = new Map<string, SearchHit | null>();
+    const dirCache = new Map<string, ScanProposal | null>();
     let scanned = 0;
     let matched = 0;
 
@@ -59,20 +59,27 @@ export const libraryScanDescriptor: JobKindDescriptor<
       let rootMatched = 0;
       try {
         for await (const { directory, files } of walk(root)) {
-          const dirname = basename(directory);
-          let aniMatch = dirCache.get(directory);
-          if (aniMatch === undefined) {
-            try {
-              const hits = await searchMangaCached(dirname);
-              aniMatch = hits[0] ?? null;
-            } catch (err) {
-              log.warn({ dirname, err }, 'anilist lookup failed; leaving directory unmatched');
-              aniMatch = null;
-            }
-            dirCache.set(directory, aniMatch);
+          const dir = basename(directory);
+          // Detect the directory's content type from its files' extensions, then
+          // query the matching metadata source (AniList / OpenLibrary / Audnex)
+          // — not AniList for everything, which only ever recognised manga.
+          let proposal = dirCache.get(directory);
+          if (proposal === undefined) {
+            const contentType = contentTypeForFiles(files.map((f) => basename(f)));
+            proposal = contentType ? await proposeForDirectory(contentType, dir) : null;
+            dirCache.set(directory, proposal);
           }
-          const existing = aniMatch ? await getSeriesByAniListId(aniMatch.anilistId) : null;
+          // Reuse an existing series only via the AniList id (the one external-id
+          // lookup we have). Other types create-new at confirm; a rescan is
+          // deduped by scan-match status (confirmed/rejected rows skipped below).
+          const existing =
+            proposal?.anilistId != null ? await getSeriesByAniListId(proposal.anilistId) : null;
           const proposedSeriesId = existing?.id ?? null;
+          // Single-item types (ebook/audiobook) are one file = volume 1 when the
+          // filename has no number — so the file LINKS to a volume instead of
+          // importing orphaned (which is why every volume read "missing").
+          const singleItem =
+            proposal?.contentType === 'ebook' || proposal?.contentType === 'audiobook';
 
           for (const file of files) {
             rootScanned++;
@@ -80,12 +87,14 @@ export const libraryScanDescriptor: JobKindDescriptor<
             if (prior?.status === 'confirmed' || prior?.status === 'rejected') continue;
 
             const parsed = parseFilename(basename(file));
+            const proposedVolume =
+              parsed.volume ?? (singleItem && parsed.chapter === null ? 1 : null);
             const patch = {
               proposedSeriesId,
-              proposedVolume: parsed.volume,
+              proposedVolume,
               proposedChapter: parsed.chapter,
               confidence: parsed.confidence,
-              parserDebugJson: JSON.stringify({ parsed, aniListMatch: aniMatch, dirname }),
+              parserDebugJson: JSON.stringify({ parsed, proposal, dirname: dir }),
               // Scan-session params for confirm-time group assignment. A rescan
               // refreshes them on pending rows so the LATEST scan's target/structure
               // wins (and a param-less rescan resets them to legacy behavior).
@@ -98,7 +107,7 @@ export const libraryScanDescriptor: JobKindDescriptor<
             } else {
               await insertScanMatch({ filePath: file, ...patch });
             }
-            if (aniMatch) rootMatched++;
+            if (proposal) rootMatched++;
           }
         }
       } catch (err) {

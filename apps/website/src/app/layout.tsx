@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono, Space_Grotesk } from 'next/font/google';
 import './globals.css';
+import { getAppVersion } from '../lib/version';
+import { VersionProvider } from './components/VersionProvider';
 
 const geist = Geist({
   variable: '--font-geist',
@@ -74,12 +76,15 @@ export const viewport: Viewport = {
   themeColor: '#0a0a0e',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
-}: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
+}: Readonly<{ children: React.ReactNode }>): Promise<React.JSX.Element> {
+  const version = await getAppVersion();
   return (
     <html lang="en" className={`${geist.variable} ${geistMono.variable} ${spaceGrotesk.variable}`}>
-      <body className="theme-violet">{children}</body>
+      <body className="theme-violet">
+        <VersionProvider version={version}>{children}</VersionProvider>
+      </body>
     </html>
   );
 }

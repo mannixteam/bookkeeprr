@@ -25,7 +25,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       );
     }
   }
-  await updatesCheckDescriptor.handler({}, 0);
+  // force: a user-initiated check must fetch even when scheduled checks are
+  // off or the last (possibly failed) attempt was recent — the 60s rate limit
+  // above is the only throttle for manual checks.
+  await updatesCheckDescriptor.handler({ force: true }, 0);
   const after = await updatesStateSetting.get();
   return NextResponse.json({ state: after });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getSessionByToken, revokeSessionByPrefix } from '@/server/db/sessions';
+import { authenticateRequest } from '@/server/auth/session-middleware';
+import { revokeSessionByPrefix } from '@/server/db/sessions';
 import { getUser } from '@/server/db/users';
 import { readSessionCookie } from '@/server/auth/session-cookie';
 import { recordAuditEvent } from '@/server/audit/record';
@@ -11,23 +12,22 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ tokenPrefix: string }> },
 ): Promise<NextResponse> {
-  const token = readSessionCookie(req);
-  if (token === null) {
+  // Any user credential works — session cookie (web) or bearer token (mobile).
+  const auth = await authenticateRequest(req as Parameters<typeof authenticateRequest>[0]);
+  if (auth.kind !== 'authenticated' || auth.actor === 'system') {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
-  const session = await getSessionByToken(token);
-  if (session === null || session.expiresAt <= new Date()) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  }
-  const user = await getUser(session.userId);
+  const user = await getUser(auth.actor.userId);
   if (user === null || user.disabled) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
   const { tokenPrefix } = await params;
 
-  // Reject if the prefix matches the current session token (use logout instead).
-  if (token.startsWith(tokenPrefix)) {
+  // Reject if the prefix matches the current WEB session (use logout instead).
+  // A bearer caller has no current web session — it may revoke any of them.
+  const cookieToken = readSessionCookie(req);
+  if (cookieToken !== null && cookieToken.startsWith(tokenPrefix)) {
     return NextResponse.json(
       { message: 'Cannot revoke the current session — use logout instead' },
       { status: 400 },

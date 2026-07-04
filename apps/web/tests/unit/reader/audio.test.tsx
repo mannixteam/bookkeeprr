@@ -10,7 +10,7 @@ vi.mock('@/lib/api-fetch', () => ({
   apiFetch: vi.fn(async () => new Response('{}', { status: 200 })),
 }));
 
-function audioManifest(): ReaderManifest {
+function audioManifest(progress?: Partial<ReaderManifest['progress']>): ReaderManifest {
   return {
     readableKey: 'audio:vol:5',
     contentType: 'audio',
@@ -32,6 +32,7 @@ function audioManifest(): ReaderManifest {
       locator: null,
       finished: false,
       restartedFromFinish: false,
+      ...progress,
     },
   };
 }
@@ -70,6 +71,39 @@ describe('AudioReader', () => {
     const playBtn = screen.getByLabelText('Play');
     fireEvent.click(playBtn);
     expect(screen.getByLabelText('Pause')).toBeTruthy();
+  });
+
+  it('seeks the audio element to the persisted resume offset once metadata loads', () => {
+    // Two 600s tracks; saved position 700s ⇒ track 2 at offset 100s.
+    const manifest = audioManifest({ position: 700 / 1200, locator: { sec: 700 } });
+    manifest.tracks = [
+      { idx: 0, fileId: 9, durationSec: 600, title: 'Ch1' },
+      { idx: 1, fileId: 10, durationSec: 600, title: 'Ch2' },
+    ];
+    manifest.totalSec = 1200;
+    const { container } = render(
+      <Wrapper>
+        <AudioReader manifest={manifest} />
+      </Wrapper>,
+    );
+    const audio = container.querySelector('audio')!;
+    // The seeded trackIdx already loads the right file…
+    expect(audio.getAttribute('src') ?? '').toContain('/api/reader/audio/10');
+    // …and once its metadata arrives, playback must resume at the saved offset.
+    fireEvent(audio, new Event('loadedmetadata'));
+    expect(audio.currentTime).toBe(100);
+  });
+
+  it('does not seek on a restart-after-finish open (progress reset to 0)', () => {
+    const manifest = audioManifest({ finished: true, restartedFromFinish: true });
+    const { container } = render(
+      <Wrapper>
+        <AudioReader manifest={manifest} />
+      </Wrapper>,
+    );
+    const audio = container.querySelector('audio')!;
+    fireEvent(audio, new Event('loadedmetadata'));
+    expect(audio.currentTime).toBe(0);
   });
 
   it('renders the chapter list with chapter titles', () => {

@@ -3,8 +3,10 @@ import { seedDb, type SeedHandle } from '../../integration/helpers/seed';
 import { insertUser } from '@/server/db/users';
 import { createSession } from '@/server/db/sessions';
 import { hashPassword } from '@/server/auth/password';
+import { issueMobileToken } from '@/server/mobile/tokens';
 import { GET, PATCH } from '@/app/api/auth/me/notifications/route';
 import { expectShape } from '../../helpers/assert-spec';
+import { withCookiesShim } from '../../helpers/cookies-shim';
 import { NotificationPrefsResponse } from '@/server/openapi/schemas/auth';
 
 let h: SeedHandle;
@@ -27,20 +29,26 @@ async function makeUserWithSession(
   return { userId: user.id, token: session.token };
 }
 
-function getReq(cookie: string | null): Request {
+function getReq(cookie: string | null, bearer?: string): Request {
   const headers: Record<string, string> = {};
   if (cookie !== null) headers.cookie = cookie;
-  return new Request('http://localhost/api/auth/me/notifications', { method: 'GET', headers });
+  if (bearer !== undefined) headers.authorization = `Bearer ${bearer}`;
+  return withCookiesShim(
+    new Request('http://localhost/api/auth/me/notifications', { method: 'GET', headers }),
+  );
 }
 
-function patchReq(cookie: string | null, body: unknown): Request {
+function patchReq(cookie: string | null, body: unknown, bearer?: string): Request {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (cookie !== null) headers.cookie = cookie;
-  return new Request('http://localhost/api/auth/me/notifications', {
-    method: 'PATCH',
-    headers,
-    body: JSON.stringify(body),
-  });
+  if (bearer !== undefined) headers.authorization = `Bearer ${bearer}`;
+  return withCookiesShim(
+    new Request('http://localhost/api/auth/me/notifications', {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body),
+    }),
+  );
 }
 
 describe('GET /api/auth/me/notifications', () => {
@@ -70,12 +78,29 @@ describe('GET /api/auth/me/notifications', () => {
     const b2 = (await r2.json()) as { prefs: Record<string, unknown> };
     expect(b1.prefs).toEqual(b2.prefs);
   });
+
+  it('authenticates with a mobile bearer token (no cookie) — the mobile app path', async () => {
+    const { userId } = await makeUserWithSession('mobile-user');
+    const issued = await issueMobileToken(userId, { label: 'iPad' });
+    const res = await GET(getReq(null, issued.token));
+    expect(res.status).toBe(200);
+    await expectShape(NotificationPrefsResponse, res, 'GET /api/auth/me/notifications');
+  });
 });
 
 describe('PATCH /api/auth/me/notifications', () => {
   it('returns 401 when unauthenticated', async () => {
     const res = await PATCH(patchReq(null, {}));
     expect(res.status).toBe(401);
+  });
+
+  it('updates a field when authenticated with a mobile bearer token', async () => {
+    const { userId } = await makeUserWithSession('mobile-user2');
+    const issued = await issueMobileToken(userId, { label: 'iPad' });
+    const res = await PATCH(patchReq(null, { channel: 'push' }, issued.token));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { prefs: Record<string, unknown> };
+    expect(body.prefs.channel).toBe('push');
   });
 
   it('updates a single boolean field', async () => {

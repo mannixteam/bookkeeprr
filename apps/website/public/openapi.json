@@ -2122,7 +2122,14 @@
                             "type": "object",
                             "properties": {
                               "asin": {
-                                "type": "string"
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               },
                               "title": {
                                 "type": "string"
@@ -3603,7 +3610,7 @@
           "Series"
         ],
         "summary": "Delete a series",
-        "description": "Cascades to volumes, chapters, releases, downloads, and library-file rows. Files on disk are not touched.",
+        "description": "Cascades to volumes, chapters, releases, downloads, and library-file rows. With `deleteFiles=true` the series folder (or its individual tracked files, when the folder is shared or outside the library root) is deleted from disk and the series torrents are removed from qBittorrent with their data (best-effort). A disk failure returns 500 and leaves the series intact; retrying is safe. By default files on disk are not touched.",
         "parameters": [
           {
             "name": "id",
@@ -3611,6 +3618,19 @@
             "required": true,
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "name": "deleteFiles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "false",
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
             }
           }
         ],
@@ -3620,6 +3640,31 @@
           },
           "400": {
             "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -8531,7 +8576,8 @@
                                     "type": "string",
                                     "enum": [
                                       "openlibrary",
-                                      "googlebooks"
+                                      "googlebooks",
+                                      "itunes"
                                     ]
                                   }
                                 },
@@ -8608,7 +8654,8 @@
                                   "type": "string",
                                   "enum": [
                                     "openlibrary",
-                                    "googlebooks"
+                                    "googlebooks",
+                                    "itunes"
                                   ]
                                 }
                               },
@@ -8624,6 +8671,50 @@
                               "additionalProperties": false
                             },
                             "description": "Up to 4 alternative candidates ranked below best."
+                          },
+                          "existingSeries": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "seriesId": {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0,
+                                    "description": "Id of the matching library series."
+                                  },
+                                  "title": {
+                                    "type": "string",
+                                    "description": "Display title of the matching library series."
+                                  },
+                                  "contentType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "manga",
+                                      "comic",
+                                      "light_novel",
+                                      "ebook",
+                                      "audiobook"
+                                    ],
+                                    "description": "The library series' content type (authoritative)."
+                                  },
+                                  "volume": {
+                                    "type": "integer",
+                                    "description": "Volume number parsed from the item filename (defaults to 1)."
+                                  }
+                                },
+                                "required": [
+                                  "seriesId",
+                                  "title",
+                                  "contentType",
+                                  "volume"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Set when the item belongs to a series already in the library; the grid offers \"add to that series\" and no external match is run."
                           }
                         },
                         "required": [
@@ -8633,7 +8724,8 @@
                           "files",
                           "sizeBytes",
                           "best",
-                          "alternatives"
+                          "alternatives",
+                          "existingSeries"
                         ],
                         "additionalProperties": false
                       }
@@ -8751,71 +8843,123 @@
                           ]
                         },
                         "match": {
-                          "type": "object",
-                          "properties": {
-                            "sourceId": {
-                              "type": "string",
-                              "description": "Provider-specific identifier (e.g. 'OL123W' or 'gb:abc')."
-                            },
-                            "title": {
-                              "type": "string"
-                            },
-                            "author": {
-                              "anyOf": [
-                                {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "sourceId": {
+                                  "type": "string",
+                                  "description": "Provider-specific identifier (e.g. 'OL123W' or 'gb:abc')."
+                                },
+                                "title": {
                                   "type": "string"
                                 },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "year": {
-                              "anyOf": [
-                                {
-                                  "type": "integer"
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "isbn": {
-                              "anyOf": [
-                                {
-                                  "type": "string"
+                                "year": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "coverUrl": {
-                              "anyOf": [
-                                {
-                                  "type": "string"
+                                "isbn": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
-                                {
-                                  "type": "null"
+                                "coverUrl": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "enum": [
+                                    "openlibrary",
+                                    "googlebooks",
+                                    "itunes"
+                                  ]
                                 }
+                              },
+                              "required": [
+                                "sourceId",
+                                "title",
+                                "author",
+                                "year",
+                                "isbn",
+                                "coverUrl",
+                                "source"
                               ]
                             },
-                            "source": {
-                              "type": "string",
-                              "enum": [
-                                "openlibrary",
-                                "googlebooks"
-                              ]
+                            {
+                              "type": "null"
                             }
-                          },
-                          "required": [
-                            "sourceId",
-                            "title",
-                            "author",
-                            "year",
-                            "isbn",
-                            "coverUrl",
-                            "source"
+                          ],
+                          "description": "Chosen metadata candidate. Null when `existingSeries` drives the adoption instead."
+                        },
+                        "existingSeries": {
+                          "description": "Set to adopt the file into an existing library series at its parsed volume.",
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "seriesId": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "description": "Id of the matching library series."
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "Display title of the matching library series."
+                                },
+                                "contentType": {
+                                  "type": "string",
+                                  "enum": [
+                                    "manga",
+                                    "comic",
+                                    "light_novel",
+                                    "ebook",
+                                    "audiobook"
+                                  ],
+                                  "description": "The library series' content type (authoritative)."
+                                },
+                                "volume": {
+                                  "type": "integer",
+                                  "description": "Volume number parsed from the item filename (defaults to 1)."
+                                }
+                              },
+                              "required": [
+                                "seriesId",
+                                "title",
+                                "contentType",
+                                "volume"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "monitor": {
@@ -22829,7 +22973,8 @@
         "tags": [
           "Readarr compat"
         ],
-        "summary": "Delete the bookkeeprr series (files on disk untouched)",
+        "summary": "Delete the bookkeeprr series",
+        "description": "Honors `deleteFiles=true` (the Readarr convention): also deletes the series files on disk and removes its torrents from qBittorrent. Without it, files on disk are untouched. 500 = disk deletion failed, series kept.",
         "parameters": [
           {
             "name": "id",
@@ -22837,6 +22982,19 @@
             "required": true,
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "name": "deleteFiles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "false",
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
             }
           }
         ],
@@ -22868,6 +23026,28 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {

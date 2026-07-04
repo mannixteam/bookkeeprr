@@ -4,7 +4,9 @@ import { insertUser, getUser } from '@/server/db/users';
 import { createSession, getSessionByToken } from '@/server/db/sessions';
 import { hashPassword } from '@/server/auth/password';
 import { DELETE } from '@/app/api/auth/me/route';
+import { issueMobileToken } from '@/server/mobile/tokens';
 import { expectShape } from '../../helpers/assert-spec';
+import { withCookiesShim } from '../../helpers/cookies-shim';
 import { AuthOkResponse } from '@/server/openapi/schemas/auth';
 
 let h: SeedHandle;
@@ -29,17 +31,28 @@ async function makeUserWithSession(
   return { userId: user.id, token: session.token, passwordHash };
 }
 
-function deleteReq(cookie: string | null, body?: unknown): Request {
+function deleteReq(cookie: string | null, body?: unknown, bearer?: string): Request {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (cookie !== null) headers.cookie = cookie;
-  return new Request('http://localhost/api/auth/me', {
-    method: 'DELETE',
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  if (bearer !== undefined) headers.authorization = `Bearer ${bearer}`;
+  return withCookiesShim(
+    new Request('http://localhost/api/auth/me', {
+      method: 'DELETE',
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
+  );
 }
 
 describe('DELETE /api/auth/me', () => {
+  it('deletes the account when authenticated with a mobile bearer token', async () => {
+    const { userId } = await makeUserWithSession('bearer-del', 'hunter22correct');
+    const issued = await issueMobileToken(userId, { label: 'iPad' });
+    const res = await DELETE(deleteReq(null, { currentPassword: 'hunter22correct' }, issued.token));
+    expect(res.status).toBe(200);
+    expect(await getUser(userId)).toBeNull();
+  });
+
   it('returns 401 when unauthenticated', async () => {
     const res = await DELETE(deleteReq(null, { currentPassword: 'anything' }));
     expect(res.status).toBe(401);

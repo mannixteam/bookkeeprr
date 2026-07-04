@@ -28,10 +28,28 @@ COPY packages packages
 RUN pnpm --filter @bookkeeprr/website build
 
 # --- runtime stage ---
-# Caddy serving the static export. HTTP/2, auto-compression,
-# automatic HTTPS (only when behind a domain + valid cert).
-FROM caddy:2-alpine AS runtime
-COPY --from=build /app/apps/website/out /srv
-COPY apps/website/Caddyfile /etc/caddy/Caddyfile
+# Node server running Next's standalone output. The site is server-rendered so
+# it resolves the release version at request time (ISR-cached hourly) without a
+# rebuild; that needs a running process, not a static file server.
+FROM node:${NODE_VERSION}-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+# Keep port 8080 so the existing ingress/Service is unchanged.
+ENV PORT=8080
+ENV HOSTNAME=0.0.0.0
+
+# The deploy health gate probes with wget from inside the container;
+# bookworm-slim doesn't ship it.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends wget \
+ && rm -rf /var/lib/apt/lists/*
+
+# Standalone server bundle (mirrors the monorepo layout under /app because
+# outputFileTracingRoot is the repo root). Static assets and public/ are not
+# part of the trace, so copy them into the paths the server expects.
+COPY --from=build /app/apps/website/.next/standalone ./
+COPY --from=build /app/apps/website/.next/static ./apps/website/.next/static
+COPY --from=build /app/apps/website/public ./apps/website/public
 
 EXPOSE 8080
+CMD ["node", "apps/website/server.js"]

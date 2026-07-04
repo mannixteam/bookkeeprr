@@ -24,12 +24,6 @@ jobs:
       - run: pnpm --filter @bookkeeprr/website lint
       - run: pnpm --filter @bookkeeprr/website typecheck
       - run: pnpm --filter @bookkeeprr/website build
-      - name: Upload static export artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: website-out
-          path: apps/website/out
-          retention-days: 7
 
   image:
     needs: check

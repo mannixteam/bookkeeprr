@@ -1,3 +1,6 @@
+require "base64"
+require "tmpdir"
+
 default_platform(:ios)
 
 platform :ios do
@@ -12,9 +15,67 @@ platform :ios do
 end
 
 platform :android do
-  desc "Build release AAB"
+  desc "Build a signed release AAB (upload key) for Google Play"
   lane :release do
     sh("cd .. && pnpm install --frozen-lockfile")
-    gradle(project_dir: "../android", task: "bundleRelease")
+
+    # Signing: the app module reads the RELEASE_* Gradle properties (see
+    # android/app/build.gradle signingConfigs.release); without them the release
+    # buildType falls back to the DEBUG key, which Google Play rejects. Same
+    # env-var contract as .gitlab/ci/mobile-android.yml.
+    %w[ANDROID_KEYSTORE_B64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD].each do |var|
+      UI.user_error!("android release lane requires #{var}") if ENV[var].to_s.empty?
+    end
+
+    # file(RELEASE_STORE_FILE) resolves relative to the :app module dir, so write
+    # the decoded keystore there and pass a bare filename.
+    keystore = File.expand_path("../android/app/release.keystore", __dir__)
+    File.binwrite(keystore, Base64.decode64(ENV["ANDROID_KEYSTORE_B64"]))
+
+    gradle(
+      # Absolute, anchored on the Fastfile dir, so the lane works regardless of
+      # the cwd fastlane is invoked from (a bare "../android" resolved wrong).
+      project_dir: File.expand_path("../android", __dir__),
+      task: "bundleRelease",
+      properties: {
+        "RELEASE_STORE_FILE"     => "release.keystore",
+        "RELEASE_STORE_PASSWORD" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+        "RELEASE_KEY_ALIAS"      => ENV["ANDROID_KEY_ALIAS"],
+        "RELEASE_KEY_PASSWORD"   => ENV["ANDROID_KEY_PASSWORD"],
+      },
+    )
+
+    aab = File.expand_path("../android/app/build/outputs/bundle/release/app-release.aab", __dir__)
+    UI.success("Signed AAB: #{aab}")
+
+    # Upload to the Play internal track when a service-account key is provided
+    # (base64 of the JSON in GOOGLE_PLAY_JSON_KEY_B64). Without it this stays a
+    # build-only lane, so local/dev builds and the legacy job don't publish.
+    key_b64 = ENV["GOOGLE_PLAY_JSON_KEY_B64"].to_s
+    if key_b64.empty?
+      UI.message("GOOGLE_PLAY_JSON_KEY_B64 not set -- skipping Play upload (build only).")
+    else
+      key_path = File.join(Dir.mktmpdir, "play-key.json")
+      File.write(key_path, Base64.decode64(key_b64))
+      begin
+        upload_to_play_store(
+          package_name: "com.bookkeeprr.app",
+          track: "internal",
+          # App is published (out of Draft), so uploads roll straight out to the
+          # internal track — no manual "Roll out" in the console. (While the app
+          # was in Draft this had to be "draft"; Play rejected "completed" then.)
+          release_status: "completed",
+          aab: aab,
+          json_key: key_path,
+          skip_upload_apk: true,
+          skip_upload_metadata: true,
+          skip_upload_images: true,
+          skip_upload_screenshots: true,
+          skip_upload_changelogs: true,
+        )
+      ensure
+        File.delete(key_path) if File.exist?(key_path)
+      end
+    end
   end
 end

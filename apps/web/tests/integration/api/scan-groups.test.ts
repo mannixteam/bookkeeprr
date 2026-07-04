@@ -24,6 +24,32 @@ const aniMatch = {
 };
 
 describe('GET /api/scan/groups', () => {
+  it('surfaces the proposal title for a non-manga (ebook) match', async () => {
+    const dir = '/media/Atomic Habits';
+    await insertScanMatch({
+      filePath: dir + '/Atomic Habits.epub',
+      proposedVolume: 1,
+      confidence: 0.6,
+      parserDebugJson: JSON.stringify({
+        proposal: {
+          contentType: 'ebook',
+          granularity: 'volume',
+          openlibraryId: 'OL123W',
+          titleEnglish: 'Atomic Habits',
+          coverUrl: 'https://example/ah.jpg',
+        },
+      }),
+    });
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const { groups } = (await res.json()) as {
+      groups: Array<{ directory: string; proposedTitle: string | null; proposedCoverUrl: string | null }>;
+    };
+    const g = groups.find((x) => x.directory === dir)!;
+    expect(g.proposedTitle).toBe('Atomic Habits');
+    expect(g.proposedCoverUrl).toBe('https://example/ah.jpg');
+  });
+
   it('returns one entry per directory with aggregated counts', async () => {
     const dir = '/media/comics/Chainsaw Man';
     await insertScanMatch({

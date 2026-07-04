@@ -131,6 +131,41 @@ const ITEM_2 = {
   alternatives: [],
 };
 
+const AUDIOBOOK_ITEM = {
+  path: '/media/audiobooks/Stephen King - The Stand',
+  detectedTitle: 'Stephen King - The Stand',
+  contentType: 'audiobook' as const,
+  files: ['/media/audiobooks/Stephen King - The Stand/The Stand, Part 1.m4b'],
+  sizeBytes: 4_096_000,
+  best: null,
+  alternatives: [],
+};
+
+const DISCOVER_RESULTS = [
+  {
+    contentType: 'audiobook',
+    sourceId: 'itunes:42',
+    title: 'The Stand (Unabridged)',
+    author: 'Stephen King',
+    year: 2012,
+    coverUrl: null,
+    source: 'itunes',
+    detail: null,
+    inLib: false,
+  },
+  {
+    contentType: 'audiobook',
+    sourceId: 'B002UZKC3W',
+    title: 'The Stand Audnex Duplicate',
+    author: 'Stephen King',
+    year: 2012,
+    coverUrl: null,
+    source: 'audnex',
+    detail: null,
+    inLib: false,
+  },
+];
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -178,6 +213,9 @@ describe('ImportGridView', () => {
       expect(screen.getByText('The First Book')).toBeTruthy();
       expect(screen.getByText('The Second Book')).toBeTruthy();
     });
+    // The (truncatable) path carries the full path as a hover tooltip.
+    expect(screen.getByTitle(ITEM_1.path)).toBeTruthy();
+    expect(screen.getByTitle(ITEM_2.path)).toBeTruthy();
   });
 
   it('changing bulk Quality select updates all rows; Import sends correct payload', async () => {
@@ -291,6 +329,61 @@ describe('ImportGridView', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Import 2 items/i })).toBeTruthy();
+    });
+  });
+
+  it('manual search queries with the row contentType and offers iTunes results for audiobooks', async () => {
+    apiFetch.mockImplementation(async (url: string, _init?: RequestInit) => {
+      if (url === '/api/library/import/scan') return json({ items: [AUDIOBOOK_ITEM] });
+      if (url === '/api/quality-profiles') return json(PROFILES);
+      if (url.startsWith('/api/discover/search')) return json({ results: DISCOVER_RESULTS });
+      if (url === '/api/library/import') return json({ imported: 1, seriesIds: [10], skipped: [] });
+      return json({}, 404);
+    });
+
+    renderGrid();
+
+    // Row renders unmatched — open the combobox and type a query
+    const trigger = await screen.findByText('No match (will skip)');
+    fireEvent.click(trigger);
+    const input = await screen.findByPlaceholderText('Search for a match…');
+    fireEvent.change(input, { target: { value: 'the stand' } });
+
+    // Debounced live search must carry the row's content type
+    await waitFor(() => {
+      const calls = (apiFetch as ReturnType<typeof vi.fn>).mock.calls as [string][];
+      expect(
+        calls.some(
+          ([url]) =>
+            url === `/api/discover/search?q=${encodeURIComponent('the stand')}&contentType=audiobook`,
+        ),
+      ).toBe(true);
+    });
+
+    // The iTunes hit is offered; the audnex hit (no Candidate mapping) is not
+    const option = await screen.findByText('The Stand (Unabridged)');
+    expect(screen.queryByText('The Stand Audnex Duplicate')).toBeNull();
+
+    // Picking it makes the row importable and lands in the adopt payload
+    fireEvent.click(option);
+    const importBtn = await screen.findByRole('button', { name: /Import 1 item$/i });
+    fireEvent.click(importBtn);
+
+    await waitFor(() => {
+      const calls = (apiFetch as ReturnType<typeof vi.fn>).mock.calls as [
+        string,
+        RequestInit?,
+      ][];
+      const adoptCall = calls.find(
+        ([url, opts]) => url === '/api/library/import' && opts?.method === 'POST',
+      );
+      expect(adoptCall).toBeTruthy();
+      const body = JSON.parse((adoptCall![1] as RequestInit).body as string) as {
+        rows: Array<{ match: { sourceId: string; source: string } }>;
+      };
+      expect(body.rows).toHaveLength(1);
+      expect(body.rows[0]?.match.sourceId).toBe('itunes:42');
+      expect(body.rows[0]?.match.source).toBe('itunes');
     });
   });
 

@@ -12,7 +12,18 @@ import {
 } from '@/server/db/settings/updates';
 import { notify } from '@/server/notifications';
 
-const Payload = z.object({}).strict();
+const Payload = z
+  .object({
+    /**
+     * Set by the manual "Check now" route: bypasses the frequency gates
+     * (`frequency=off` and the min-interval window) so a user-initiated check
+     * always fetches. Without it, a stale `fetchError` — or frequency=off —
+     * makes the manual check re-serve old state forever. The route's own 60s
+     * rate limit still applies.
+     */
+    force: z.boolean().optional(),
+  })
+  .strict();
 
 export type UpdatesCheckResult = {
   latestVersion: string | null;
@@ -20,7 +31,7 @@ export type UpdatesCheckResult = {
 };
 
 export const updatesCheckDescriptor: JobKindDescriptor<
-  Record<string, never>,
+  { force?: boolean },
   UpdatesCheckResult
 > = {
   kind: 'updates_check',
@@ -28,10 +39,10 @@ export const updatesCheckDescriptor: JobKindDescriptor<
   timeoutMs: DEFAULT_TIMEOUT_MS,
   handler: async (raw) => {
     const log = logger().child({ component: 'updates_check' });
-    Payload.parse(raw);
+    const { force = false } = Payload.parse(raw);
 
     const cfg = await updatesConfigSetting.get();
-    if (cfg.frequency === 'off') {
+    if (cfg.frequency === 'off' && !force) {
       log.info('updates check disabled (frequency=off); skipping');
       return { latestVersion: null, changed: false };
     }
@@ -39,8 +50,10 @@ export const updatesCheckDescriptor: JobKindDescriptor<
     const prior = await updatesStateSetting.get();
     const now = new Date().toISOString();
 
-    // Frequency gate: skip if last check is too recent.
-    if (prior.fetchedAt !== null) {
+    // Frequency gate: skip if last check is too recent. Never gates a forced
+    // (manual) check — a failed attempt stamps fetchedAt, and gating on it
+    // would replay the stale fetchError until the window expires.
+    if (!force && prior.fetchedAt !== null) {
       const msSinceLast = Date.now() - new Date(prior.fetchedAt).getTime();
       const minIntervalMs: Record<'hourly' | 'daily' | 'weekly' | 'off', number> = {
         hourly: 60 * 60 * 1000,

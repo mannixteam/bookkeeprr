@@ -49,13 +49,46 @@ export function relativeDirOf(scanRootPath: string | null, directory: string): s
   return rel;
 }
 
-function parseAniListStash(json: string): AniListStash {
+type ProposedMeta = { anilistId: number | null; title: string | null; coverUrl: string | null };
+
+/**
+ * Pull the summary-relevant fields from a scan_matches stash. The scan now
+ * writes a content-type-tagged `proposal` (manga via AniList, ebook via
+ * OpenLibrary, audiobook via Audnex, ...); pre-upgrade rows only have
+ * `aniListMatch`. Read either so every content type surfaces its title/cover.
+ */
+function parseProposedMeta(json: string): ProposedMeta {
   try {
-    const debug = JSON.parse(json) as { aniListMatch?: AniListStash };
-    return debug.aniListMatch ?? null;
+    const debug = JSON.parse(json) as {
+      proposal?: {
+        anilistId?: number | null;
+        titleRomaji?: string | null;
+        titleEnglish?: string | null;
+        titleNative?: string | null;
+        coverUrl?: string | null;
+      } | null;
+      aniListMatch?: AniListStash;
+    };
+    const p = debug.proposal;
+    if (p && (p.titleRomaji || p.titleEnglish || p.titleNative || p.anilistId != null)) {
+      return {
+        anilistId: p.anilistId ?? null,
+        title: p.titleRomaji ?? p.titleEnglish ?? p.titleNative ?? null,
+        coverUrl: p.coverUrl ?? null,
+      };
+    }
+    const m = debug.aniListMatch;
+    if (m) {
+      return {
+        anilistId: m.anilistId ?? null,
+        title: m.titleRomaji ?? m.titleEnglish ?? m.titleNative ?? null,
+        coverUrl: m.coverUrl ?? null,
+      };
+    }
   } catch {
-    return null;
+    /* malformed stash → no proposal */
   }
+  return { anilistId: null, title: null, coverUrl: null };
 }
 
 /** Build a GroupSummary[] from all pending scan_matches rows, sorted by dirname. */
@@ -78,10 +111,9 @@ export async function buildGroupSummaries(): Promise<GroupSummary[]> {
 
   const groups: GroupSummary[] = [];
   for (const [directory, bucket] of byDir) {
-    const stash = parseAniListStash(bucket[0]!.parserDebugJson);
-    const anilistId = stash?.anilistId ?? null;
-    const existing =
-      anilistId !== null && anilistId !== undefined ? await getSeriesByAniListId(anilistId) : null;
+    const meta = parseProposedMeta(bucket[0]!.parserDebugJson);
+    const anilistId = meta.anilistId;
+    const existing = anilistId !== null ? await getSeriesByAniListId(anilistId) : null;
     const avgConfidence = bucket.reduce((s, r) => s + (r.confidence ?? 0), 0) / bucket.length;
     const hasChapter = bucket.some((r) => r.proposedChapter !== null);
     const dirBase = directory.split('/').pop() ?? directory;
@@ -91,8 +123,8 @@ export async function buildGroupSummaries(): Promise<GroupSummary[]> {
       dirname: dirBase,
       fileCount: bucket.length,
       proposedAniListId: anilistId,
-      proposedTitle: stash?.titleRomaji ?? stash?.titleEnglish ?? stash?.titleNative ?? null,
-      proposedCoverUrl: stash?.coverUrl ?? null,
+      proposedTitle: meta.title,
+      proposedCoverUrl: meta.coverUrl,
       existingSeriesId: existing?.id ?? null,
       inferredGranularity: hasChapter ? 'chapter' : 'volume',
       avgConfidence,

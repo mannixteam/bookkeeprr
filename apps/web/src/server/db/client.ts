@@ -1,11 +1,28 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import * as schema from './schema';
 
 let sqlite: Database.Database | null = null;
 let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
+
+/**
+ * Default DB location when neither an explicit path nor BOOKKEEPRR_DB_PATH is
+ * set. A deployed container exports BOOKKEEPRR_CONFIG_DIR pointing at the
+ * mounted config volume (e.g. /config), so the DB lands there and survives
+ * container recreates/updates. Only local dev (no CONFIG_DIR) keeps the
+ * repo-local dev DB.
+ *
+ * This used to fall back to ./bookkeeprr.dev.db unconditionally — in a
+ * container that path lives in the EPHEMERAL writable layer, so every recreate
+ * silently discarded the entire database. Defaulting onto CONFIG_DIR makes
+ * persistence the safe default even if BOOKKEEPRR_DB_PATH is never set.
+ */
+function defaultDbPath(): string {
+  const configDir = process.env.BOOKKEEPRR_CONFIG_DIR;
+  return configDir ? join(configDir, 'bookkeeprr.db') : './bookkeeprr.dev.db';
+}
 
 export function getDb(dbPath?: string): ReturnType<typeof drizzle<typeof schema>> {
   if (dbInstance) return dbInstance;
@@ -20,7 +37,7 @@ export function getDb(dbPath?: string): ReturnType<typeof drizzle<typeof schema>
         '(or use seedDb()) so the test never touches ./bookkeeprr.dev.db.',
     );
   }
-  const path = dbPath ?? process.env.BOOKKEEPRR_DB_PATH ?? './bookkeeprr.dev.db';
+  const path = dbPath ?? process.env.BOOKKEEPRR_DB_PATH ?? defaultDbPath();
   mkdirSync(dirname(path), { recursive: true });
   sqlite = new Database(path);
   sqlite.pragma('journal_mode = WAL');

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { APP_VERSION } from '../../lib/version';
+import { useAppVersion } from './VersionProvider';
 
 /**
  * Live mounts of the design system's first mobile + tablet library views.
@@ -1213,6 +1213,7 @@ function TabNavItem({ item, active }: { item: NavItem; active: boolean }): React
 }
 
 function TabSidebar(): React.JSX.Element {
+  const version = useAppVersion();
   return (
     <aside
       style={{
@@ -1321,7 +1322,7 @@ function TabSidebar(): React.JSX.Element {
               letterSpacing: '0.06em',
             }}
           >
-            v{APP_VERSION} · 99c4d79
+            v{version} · 99c4d79
           </div>
         </div>
       </div>

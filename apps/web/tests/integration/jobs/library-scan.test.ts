@@ -61,8 +61,11 @@ describe('library_scan', () => {
     const rows = await listPendingByDirectoryPrefix(join(root, 'Chainsaw Man'));
     expect(rows).toHaveLength(2);
     for (const r of rows) {
-      const debug = JSON.parse(r.parserDebugJson) as { aniListMatch: { anilistId: number } };
-      expect(debug.aniListMatch?.anilistId).toBe(105778);
+      const debug = JSON.parse(r.parserDebugJson) as {
+        proposal: { contentType: string; anilistId: number };
+      };
+      expect(debug.proposal?.contentType).toBe('manga');
+      expect(debug.proposal?.anilistId).toBe(105778);
       expect(r.proposedSeriesId).toBe(h.seriesId);
       expect(r.proposedVolume).toBeGreaterThan(0);
       expect(r.confidence).toBeGreaterThan(0.9);
@@ -153,8 +156,8 @@ describe('library_scan', () => {
     await runOnce(libraryScanDescriptor);
     const row = await getScanMatchByPath(join(root, 'Obscure', 'Obscure v01.cbz'));
     expect(row?.proposedSeriesId).toBeNull();
-    const debug = JSON.parse(row!.parserDebugJson) as { aniListMatch: unknown };
-    expect(debug.aniListMatch).toBeNull();
+    const debug = JSON.parse(row!.parserDebugJson) as { proposal: unknown };
+    expect(debug.proposal).toBeNull();
   });
 
   it('continues the scan when AniList throws for a directory', async () => {

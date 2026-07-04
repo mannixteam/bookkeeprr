@@ -16,8 +16,8 @@ export default async function LibraryImportPage(): Promise<React.JSX.Element> {
   if (user === null || user.disabled) redirect('/login?next=/library/import');
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-1">
+    <div className="flex h-full flex-col gap-6">
+      <div className="flex shrink-0 flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold text-foreground">
           Library Import
         </h1>

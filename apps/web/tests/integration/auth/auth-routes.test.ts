@@ -8,6 +8,8 @@ import { POST as logout } from '@/app/api/auth/logout/route';
 import { GET as me } from '@/app/api/auth/me/route';
 import { POST as changePassword } from '@/app/api/auth/change-password/route';
 import { expectShape } from '../../helpers/assert-spec';
+import { withCookiesShim } from '../../helpers/cookies-shim';
+import { issueMobileToken } from '@/server/mobile/tokens';
 import {
   AuthOkResponse,
   LoginResponse,
@@ -30,14 +32,16 @@ function jsonReq(body: unknown, headers: Record<string, string> = {}): Request {
 }
 
 function reqWithCookie(token: string, method = 'POST', body: unknown = {}): Request {
-  return new Request('http://localhost/api/auth/x', {
-    method,
-    headers: {
-      'content-type': 'application/json',
-      cookie: `bookkeeprr_session=${token}`,
-    },
-    body: method === 'GET' ? undefined : JSON.stringify(body),
-  });
+  return withCookiesShim(
+    new Request('http://localhost/api/auth/x', {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        cookie: `bookkeeprr_session=${token}`,
+      },
+      body: method === 'GET' ? undefined : JSON.stringify(body),
+    }),
+  );
 }
 
 describe('POST /api/auth/register-first-admin', () => {
@@ -180,11 +184,32 @@ describe('GET /api/auth/me', () => {
   });
 
   it('returns { user: null } when not authenticated', async () => {
-    const r = await me(new Request('http://localhost/api/auth/me'));
+    const r = await me(withCookiesShim(new Request('http://localhost/api/auth/me')));
     expect(r.status).toBe(200);
     await expectShape(MeResponse, r, 'GET /api/auth/me (unauthenticated)');
     const body = (await r.json()) as { user: unknown };
     expect(body.user).toBeNull();
+  });
+
+  it('returns the user for a mobile bearer token (the mobile 2FA screen path)', async () => {
+    const u = await insertUser({
+      username: 'mob',
+      passwordHash: 'h',
+      role: 'user',
+      mustChangePassword: false,
+    });
+    const issued = await issueMobileToken(u.id, { label: 'iPad' });
+    const r = await me(
+      withCookiesShim(
+        new Request('http://localhost/api/auth/me', {
+          headers: { authorization: `Bearer ${issued.token}` },
+        }),
+      ),
+    );
+    expect(r.status).toBe(200);
+    await expectShape(MeResponse, r, 'GET /api/auth/me (bearer)');
+    const body = (await r.json()) as { user: { username: string } | null };
+    expect(body.user?.username).toBe('mob');
   });
 });
 

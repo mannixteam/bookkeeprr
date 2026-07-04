@@ -13,7 +13,7 @@
  * Test: unit-test makeSidebarNavigate (the extracted pure helper).
  */
 
-import { makeSidebarNavigate, KEY_TO_ROUTE } from '@/components/TabletAppShell';
+import { makeSidebarNavigate, KEY_TO_ROUTE, isReaderFocused } from '@/components/TabletAppShell';
 import { LibraryStack } from '@/navigation/LibraryStack';
 import { HomeStack } from '@/navigation/HomeStack';
 import { SettingsStack } from '@/navigation/SettingsStack';
@@ -119,6 +119,100 @@ describe('makeSidebarNavigate — tabPress emission', () => {
 
     expect(nav.emit).not.toHaveBeenCalled();
     expect(nav.navigate).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tablet bug: on Android the Reader's fullScreenModal is bounded to its
+// navigator container, so the left sidebar stays visible behind it (on iOS the
+// modal covers the whole window). TabletAppShell collapses the sidebar inset on
+// Android while the Reader is focused; isReaderFocused is the extracted pure
+// predicate that walks the focused-route path to detect that. It must only
+// return true when Reader is on the CURRENTLY-FOCUSED path (else a Reader parked
+// in a background tab would wrongly hide the sidebar).
+// ---------------------------------------------------------------------------
+
+describe('isReaderFocused — focused-route path walk', () => {
+  it('returns true when Reader is the focused route in the Library stack', () => {
+    const state = {
+      index: 0,
+      routes: [
+        {
+          name: 'App',
+          state: {
+            index: 1, // Library tab focused
+            routes: [
+              { name: 'Home' },
+              { name: 'Library', state: { index: 1, routes: [{ name: 'LibraryHome' }, { name: 'Reader' }] } },
+            ],
+          },
+        },
+      ],
+    };
+    expect(isReaderFocused(state as never)).toBe(true);
+  });
+
+  it('returns true when Reader is the focused route in the Home stack', () => {
+    const state = {
+      index: 0,
+      routes: [
+        {
+          name: 'App',
+          state: {
+            index: 0, // Home tab focused
+            routes: [
+              { name: 'Home', state: { index: 1, routes: [{ name: 'Dashboard' }, { name: 'Reader' }] } },
+              { name: 'Library' },
+            ],
+          },
+        },
+      ],
+    };
+    expect(isReaderFocused(state as never)).toBe(true);
+  });
+
+  it('returns false when the focused route is a library detail, not the Reader', () => {
+    const state = {
+      index: 0,
+      routes: [
+        {
+          name: 'App',
+          state: {
+            index: 1,
+            routes: [
+              { name: 'Home' },
+              { name: 'Library', state: { index: 0, routes: [{ name: 'LibraryHome' }] } },
+            ],
+          },
+        },
+      ],
+    };
+    expect(isReaderFocused(state as never)).toBe(false);
+  });
+
+  it('returns false when a Reader is parked in a NON-focused tab', () => {
+    // Home is focused; the Library stack still has Reader on top but is hidden.
+    const state = {
+      index: 0,
+      routes: [
+        {
+          name: 'App',
+          state: {
+            index: 0, // Home focused, not Library
+            routes: [
+              { name: 'Home', state: { index: 0, routes: [{ name: 'Dashboard' }] } },
+              { name: 'Library', state: { index: 1, routes: [{ name: 'LibraryHome' }, { name: 'Reader' }] } },
+            ],
+          },
+        },
+      ],
+    };
+    expect(isReaderFocused(state as never)).toBe(false);
+  });
+
+  it('returns false for undefined or empty navigation state', () => {
+    expect(isReaderFocused(undefined as never)).toBe(false);
+    expect(isReaderFocused({ index: 0, routes: [] } as never)).toBe(false);
   });
 });
 

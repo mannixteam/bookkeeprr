@@ -87,4 +87,17 @@ describe('walk', () => {
     expect(out).toHaveLength(1);
     expect(out[0]!.directory).toContain('Visible');
   });
+
+  it('discovers ebook and audiobook formats, not just comic archives', async () => {
+    mkdirSync(join(root, 'Atomic Habits'));
+    writeFileSync(join(root, 'Atomic Habits', 'Atomic Habits.epub'), '');
+    mkdirSync(join(root, "Can't Hurt Me"));
+    writeFileSync(join(root, "Can't Hurt Me", "Can't Hurt Me.m4b"), '');
+    mkdirSync(join(root, 'Sabriel'));
+    writeFileSync(join(root, 'Sabriel', 'Sabriel.pdf'), '');
+    const out = await collect(root);
+    expect(out).toHaveLength(3);
+    const dirs = out.map((e) => e.directory.split('/').pop()).sort();
+    expect(dirs).toEqual(['Atomic Habits', "Can't Hurt Me", 'Sabriel']);
+  });
 });

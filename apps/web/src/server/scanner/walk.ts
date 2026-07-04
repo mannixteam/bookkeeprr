@@ -1,8 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from '@/server/logger';
-
-const ARCHIVE_RE = /\.(cbz|cbr|zip|rar)$/i;
+import { MEDIA_EXT_RE } from './formats';
 
 export async function* walk(
   rootPath: string,
@@ -26,7 +25,7 @@ export async function* walk(
       if (entry.isDirectory()) {
         if (entry.name.startsWith('.') || entry.name === '@eaDir') continue;
         subdirs.push(full);
-      } else if (entry.isFile() && ARCHIVE_RE.test(entry.name)) {
+      } else if (entry.isFile() && MEDIA_EXT_RE.test(entry.name)) {
         archives.push(full);
       }
     }

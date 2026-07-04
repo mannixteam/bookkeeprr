@@ -41,7 +41,14 @@ export function PdfReader({ manifest, onBack }: PdfReaderProps) {
   const serverUrl = state.status === 'authenticated' ? state.creds.serverUrl : '';
 
   const fileId = useMemo(() => fileIdOf(manifest.readableKey), [manifest.readableKey]);
-  const pageCount = Math.max(1, manifest.pageCount ?? 1);
+
+  // The displayed page total prefers `react-native-pdf`'s authoritative count
+  // (reported via onLoadComplete/onPageChanged once the document loads) over the
+  // server's `manifest.pageCount`, which is a tail-scan heuristic that can
+  // under-count (returning 1) for linearized / xref-stream PDFs. Until the
+  // native count arrives we fall back to the manifest value.
+  const [nativeTotal, setNativeTotal] = useState<number | null>(null);
+  const pageCount = Math.max(1, nativeTotal ?? manifest.pageCount ?? 1);
 
   const { progress, commit } = useReadingProgress(
     manifest.readableKey,
@@ -95,12 +102,19 @@ export function PdfReader({ manifest, onBack }: PdfReaderProps) {
   const onPageChanged = useCallback(
     (page: number, total: number) => {
       const count = Math.max(1, total);
+      setNativeTotal((prev) => (count > (prev ?? 0) ? count : prev));
       const zero = Math.min(Math.max(0, page - 1), count - 1);
       setIdx(zero);
       commit(pageToPosition(zero, count), { page: zero });
     },
     [commit],
   );
+
+  // `react-native-pdf` reports the authoritative page count once the document
+  // finishes loading; adopt it so a wrong/absent server `pageCount` self-heals.
+  const onLoadComplete = useCallback((numberOfPages: number) => {
+    if (numberOfPages > 0) setNativeTotal(numberOfPages);
+  }, []);
 
   const goIdx = useCallback(
     (n: number) => {
@@ -124,7 +138,15 @@ export function PdfReader({ manifest, onBack }: PdfReaderProps) {
         // `react-native-pdf` is 1-based for the `page` prop.
         page={idx + 1}
         source={source}
+        onLoadComplete={onLoadComplete}
         onPageChanged={onPageChanged}
+        // react-native-pdf defaults trustAllCerts=true, routing the Android
+        // download through react-native-blob-util's unsafe OkHttp client, which
+        // throws "Use of own trust manager but none defined" on blob-util 0.24.x
+        // and silently fails the load (blank reader / stuck at "1/1"). Validate
+        // certs instead — the server TLS cert is already system-trusted (every
+        // other HTTPS call in the app succeeds), so this loads and is more secure.
+        trustAllCerts={false}
         style={{ flex: 1, backgroundColor: palette.page }}
       />
       <ProgressRail

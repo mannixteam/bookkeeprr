@@ -45,6 +45,41 @@ describe('updates_check job kind', () => {
     expect(after).toEqual(before);
   });
 
+  it('force:true fetches even when frequency=off and clears a stale fetchError', async () => {
+    // The prod bug: a failed check stamped fetchedAt + fetchError, and with
+    // frequency=off (or a recent fetchedAt) the manual "Check now" never
+    // re-fetched — it re-served the stale 404 forever.
+    await updatesConfigSetting.set({
+      frequency: 'off',
+      behavior: 'notify',
+      notifyOnIntegrations: false,
+      showChangelogOnFirstLaunch: true,
+    });
+    await updatesStateSetting.set({
+      latestVersion: null,
+      latestReleaseUrl: null,
+      latestReleaseBody: null,
+      latestPublishedAt: null,
+      fetchedAt: new Date().toISOString(), // recent — would trip the window gate too
+      fetchError: 'http: 404 Not Found',
+    });
+    vi.spyOn(ghClient, 'fetchReleases').mockResolvedValueOnce([
+      {
+        tagName: 'v99.0.0',
+        name: 'v99.0.0',
+        body: 'big release',
+        htmlUrl: 'https://github.com/x/y/releases/tag/v99.0.0',
+        publishedAt: '2026-05-20T12:00:00Z',
+        prerelease: false,
+        draft: false,
+      },
+    ]);
+    await updatesCheckDescriptor.handler({ force: true }, 1);
+    const state = await updatesStateSetting.get();
+    expect(state.latestVersion).toBe('v99.0.0');
+    expect(state.fetchError).toBeNull();
+  });
+
   it('preserves prior latestVersion on fetch failure', async () => {
     await updatesStateSetting.set({
       latestVersion: 'v0.5.0',

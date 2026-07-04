@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { openLibraryCoverUrl } from '@bookkeeprr/logic';
-import { APP_VERSION } from '../../../lib/version';
+import { useAppVersion } from '../VersionProvider';
 import type { Phase } from './useDemoMachine';
 
 /**
@@ -365,6 +365,7 @@ interface DemoStageProps {
 }
 
 export function DemoStage({ phase }: DemoStageProps): React.JSX.Element {
+  const version = useAppVersion();
   const phaseIdx = phaseIndex(phase);
   const label = PHASE_LABELS[phase];
 
@@ -536,7 +537,7 @@ export function DemoStage({ phase }: DemoStageProps): React.JSX.Element {
           <div>
             <div style={{ color: 'var(--fg-soft)', fontSize: '12.5px' }}>Worker online</div>
             <div className="mono" style={{ fontSize: '10px', color: 'var(--muted-2)' }}>
-              v{APP_VERSION} · scanned 2m ago
+              v{version} · scanned 2m ago
             </div>
           </div>
         </div>

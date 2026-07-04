@@ -210,6 +210,7 @@ import {
   ManualGrabResponse,
   SeriesCreateBody,
   SeriesCreateResponse,
+  SeriesDeleteQuery,
   SeriesDetailResponse,
   SeriesListQuery,
   SeriesListResponse,
@@ -337,9 +338,15 @@ export const registry: OperationDef[] = [
     summary: 'Delete a series',
     description:
       'Cascades to volumes, chapters, releases, downloads, and library-file ' +
-      'rows. Files on disk are not touched.',
+      'rows. With `deleteFiles=true` the series folder (or its individual ' +
+      'tracked files, when the folder is shared or outside the library root) ' +
+      'is deleted from disk and the series torrents are removed from ' +
+      'qBittorrent with their data (best-effort). A disk failure returns 500 ' +
+      'and leaves the series intact; retrying is safe. By default files on ' +
+      'disk are not touched.',
     params: SeriesIdParam,
-    responses: { 204: null, 400: ErrorResponse },
+    query: SeriesDeleteQuery,
+    responses: { 204: null, 400: ErrorResponse, 500: ErrorResponse },
   },
   {
     method: 'get',
@@ -2436,9 +2443,20 @@ export const registry: OperationDef[] = [
     method: 'delete',
     path: '/api/readarr/v1/author/{id}',
     tag: 'Readarr compat',
-    summary: 'Delete the bookkeeprr series (files on disk untouched)',
+    summary: 'Delete the bookkeeprr series',
+    description:
+      'Honors `deleteFiles=true` (the Readarr convention): also deletes the ' +
+      'series files on disk and removes its torrents from qBittorrent. ' +
+      'Without it, files on disk are untouched. 500 = disk deletion failed, ' +
+      'series kept.',
     params: { id: z.coerce.number().int() },
-    responses: { 204: null, 400: ReadarrErrorResponse, 404: ReadarrErrorResponse },
+    query: SeriesDeleteQuery,
+    responses: {
+      204: null,
+      400: ReadarrErrorResponse,
+      404: ReadarrErrorResponse,
+      500: ReadarrErrorResponse,
+    },
   },
   {
     method: 'get',

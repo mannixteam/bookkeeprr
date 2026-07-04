@@ -37,4 +37,30 @@ describe('parseFilename', () => {
     expect(r.debug.stripped).not.toContain('[');
     expect(r.debug.stripped).not.toContain('.cbz');
   });
+
+  describe('trailing (N) counter fallback', () => {
+    it('recovers a degraded name whose number survives only as "(N)"', () => {
+      const r = parseFilename('Bunny Drop - c [] (1).cbz');
+      expect(r.volume).toBe(1);
+      expect(r.chapter).toBeNull();
+      expect(r.confidence).toBeCloseTo(0.3, 2);
+      expect(r.debug.matchedPattern).toBe('paren-counter');
+    });
+
+    it('reads a plain trailing "(N)" as the volume', () => {
+      expect(parseFilename('Some Series (7).cbz').volume).toBe(7);
+    });
+
+    it('ignores 4-digit years like "(2021)"', () => {
+      const r = parseFilename('Some Series (2021).cbz');
+      expect(r.volume).toBeNull();
+      expect(r.chapter).toBeNull();
+    });
+
+    it('does not override a real v/ch match', () => {
+      const r = parseFilename('Series v05 (2021).cbz');
+      expect(r.volume).toBe(5);
+      expect(r.debug.matchedPattern).not.toBe('paren-counter');
+    });
+  });
 });

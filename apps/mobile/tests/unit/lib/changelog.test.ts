@@ -21,8 +21,8 @@ describe('changelog accessor', () => {
   });
 
   it('getVersionEntry returns matching version', () => {
-    const v = getVersionEntry('0.1.0');
-    expect(v?.version).toBe('0.1.0');
+    const v = getVersionEntry('1.0.0');
+    expect(v?.version).toBe('1.0.0');
   });
 
   it('getVersionEntry returns undefined for unknown', () => {
@@ -30,7 +30,7 @@ describe('changelog accessor', () => {
   });
 
   it('hasVersion reflects presence', () => {
-    expect(hasVersion('0.1.0')).toBe(true);
+    expect(hasVersion('1.0.0')).toBe(true);
     expect(hasVersion('99.99.99')).toBe(false);
   });
 });

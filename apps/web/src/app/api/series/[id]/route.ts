@@ -9,7 +9,12 @@ import { requireUserId } from '@/server/auth/require-user';
 import { proxiedCoverUrl } from '@/server/images/allowlist';
 import { recordAuditEvent } from '@/server/audit/record';
 import { auditActor, auditContext } from '@/server/audit/request';
-import { SeriesPatchBody } from '@/server/openapi/schemas/series';
+import { SeriesDeleteQuery, SeriesPatchBody } from '@/server/openapi/schemas/series';
+import {
+  deleteSeriesFilesAndTorrents,
+  SeriesFileDeletionError,
+  type DeleteSeriesFilesResult,
+} from '@/server/series/delete-files';
 import { getGroup, groupPath, moveSeriesToGroup } from '@/server/db/library-groups';
 import { recordActivity } from '@/server/db/activity-events';
 import { activeJobKindsForSeries } from '@/server/db/jobs';
@@ -162,13 +167,50 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<NextResponse> {
 export async function DELETE(req: Request, ctx: Ctx): Promise<NextResponse> {
   const id = await resolveId(ctx);
   if (id === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+
+  const parsedQuery = SeriesDeleteQuery.safeParse(
+    Object.fromEntries(new URL(req.url).searchParams),
+  );
+  if (!parsedQuery.success) {
+    return NextResponse.json(
+      { error: 'invalid query', detail: parsedQuery.error.message },
+      { status: 400 },
+    );
+  }
+  const deleteFiles = parsedQuery.data.deleteFiles === 'true';
+
   const existing = await getSeries(id);
+
+  // Disk + torrents go FIRST: a failure must leave the series intact so the
+  // user can retry; deleting the DB rows first would orphan untracked files.
+  let disk: DeleteSeriesFilesResult = { filesDeleted: 0, torrentsDeleted: 0, errors: [] };
+  if (deleteFiles && existing) {
+    try {
+      disk = await deleteSeriesFilesAndTorrents(id);
+    } catch (err) {
+      if (err instanceof SeriesFileDeletionError) {
+        return NextResponse.json(
+          { error: 'file deletion failed', detail: err.failures.join('; ') },
+          { status: 500 },
+        );
+      }
+      throw err;
+    }
+  }
+
   await deleteSeries(id);
   await recordAuditEvent({
     actor: await auditActor(req),
     action: 'series.delete',
     target: { kind: 'series', id: String(id) },
-    metadata: { title: existing?.titleEnglish ?? null, contentType: existing?.contentType ?? null },
+    metadata: {
+      title: existing?.titleEnglish ?? null,
+      contentType: existing?.contentType ?? null,
+      deleteFiles,
+      filesDeleted: disk.filesDeleted,
+      torrentsDeleted: disk.torrentsDeleted,
+      ...(disk.errors.length > 0 ? { errors: disk.errors } : {}),
+    },
     context: auditContext(req),
   });
   return new NextResponse(null, { status: 204 });

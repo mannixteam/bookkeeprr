@@ -13,6 +13,10 @@ expo-env.d.ts
 .kotlin/
 *.orig.*
 *.jks
+# Release/upload keystore is decoded from ANDROID_KEYSTORE_B64 at build time —
+# never commit it. Keep the tracked debug keystore.
+*.keystore
+!android/app/debug.keystore
 *.p8
 *.p12
 *.key

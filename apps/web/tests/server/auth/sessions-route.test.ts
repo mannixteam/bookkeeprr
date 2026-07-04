@@ -3,9 +3,11 @@ import { seedDb, type SeedHandle } from '../../integration/helpers/seed';
 import { insertUser } from '@/server/db/users';
 import { createSession, getSessionByToken } from '@/server/db/sessions';
 import { hashPassword } from '@/server/auth/password';
+import { issueMobileToken } from '@/server/mobile/tokens';
 import { GET } from '@/app/api/auth/sessions/route';
 import { DELETE } from '@/app/api/auth/sessions/[tokenPrefix]/route';
 import { expectShape } from '../../helpers/assert-spec';
+import { withCookiesShim } from '../../helpers/cookies-shim';
 import { AuthOkResponse, SessionsListResponse } from '@/server/openapi/schemas/auth';
 
 let h: SeedHandle;
@@ -37,16 +39,22 @@ async function makeUserWithSessions(
   return { userId: user.id, tokens };
 }
 
-function getReq(cookie: string | null): Request {
+function getReq(cookie: string | null, bearer?: string): Request {
   const headers: Record<string, string> = {};
   if (cookie !== null) headers.cookie = cookie;
-  return new Request('http://localhost/api/auth/sessions', { method: 'GET', headers });
+  if (bearer !== undefined) headers.authorization = `Bearer ${bearer}`;
+  return withCookiesShim(
+    new Request('http://localhost/api/auth/sessions', { method: 'GET', headers }),
+  );
 }
 
-function deleteReq(cookie: string | null): Request {
+function deleteReq(cookie: string | null, bearer?: string): Request {
   const headers: Record<string, string> = {};
   if (cookie !== null) headers.cookie = cookie;
-  return new Request('http://localhost/api/auth/sessions/prefix', { method: 'DELETE', headers });
+  if (bearer !== undefined) headers.authorization = `Bearer ${bearer}`;
+  return withCookiesShim(
+    new Request('http://localhost/api/auth/sessions/prefix', { method: 'DELETE', headers }),
+  );
 }
 
 function fakeParams(prefix: string): { params: Promise<{ tokenPrefix: string }> } {
@@ -94,6 +102,24 @@ describe('GET /api/auth/sessions', () => {
     const res = await GET(getReq(`bookkeeprr_session=${aliceTokens[0]}`));
     const body = (await res.json()) as { sessions: unknown[] };
     expect(body.sessions).toHaveLength(2);
+  });
+
+  it('authenticates with a mobile bearer token (no cookie) — the mobile app path', async () => {
+    const { userId } = await makeUserWithSessions('mobile-user', 2);
+    const issued = await issueMobileToken(userId, { label: 'iPad' });
+    const res = await GET(getReq(null, issued.token));
+    expect(res.status).toBe(200);
+    await expectShape(SessionsListResponse, res, 'GET /api/auth/sessions');
+    const body = (await res.json()) as { sessions: Array<{ current: boolean }> };
+    expect(body.sessions).toHaveLength(2);
+    // A bearer caller has no current WEB session — nothing is marked current.
+    expect(body.sessions.every((s) => !s.current)).toBe(true);
+  });
+
+  it('returns 401 for an unknown bearer token', async () => {
+    await makeUserWithSessions('mobile-user2', 1);
+    const res = await GET(getReq(null, 'not-a-real-token'));
+    expect(res.status).toBe(401);
   });
 });
 
@@ -148,5 +174,13 @@ describe('DELETE /api/auth/sessions/:tokenPrefix', () => {
     );
     expect(res.status).toBe(404);
     expect(await getSessionByToken(bobTokens[0]!)).not.toBeNull();
+  });
+
+  it('revokes a web session when authenticated with a mobile bearer token', async () => {
+    const { userId, tokens } = await makeUserWithSessions('mobile-user3', 1);
+    const issued = await issueMobileToken(userId, { label: 'iPad' });
+    const res = await DELETE(deleteReq(null, issued.token), fakeParams(tokens[0]!.slice(0, 12)));
+    expect(res.status).toBe(200);
+    expect(await getSessionByToken(tokens[0]!)).toBeNull();
   });
 });

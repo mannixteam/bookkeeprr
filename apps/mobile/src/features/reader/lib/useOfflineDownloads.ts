@@ -121,26 +121,43 @@ export function mapOfflineGroups(
     const title = sidecarTitle ?? metaTitle ?? 'Unknown title';
     const resolved = sidecarTitle !== undefined || metaTitle !== undefined;
 
-    // Series label from the sidecar; fall back to the volume title, then a
-    // generic "Downloaded" for legacy sidecars that carry neither.
+    // Display fields must not hinge on which volume happens to sort first —
+    // an older sidecar (no seriesName, no cover) as group[0] used to label the
+    // whole series row with its volume title and a blank cover. Scan the whole
+    // group for the first volume that carries each field.
+    const firstWith = <T,>(pick: (e: OfflineEntry) => T | undefined): T | undefined => {
+      for (const e of group) {
+        const v = pick(e);
+        if (v !== undefined) return v;
+      }
+      return undefined;
+    };
+    const nonEmpty = (s: string | undefined | null): string | undefined =>
+      s && s.length > 0 ? s : undefined;
+
+    // Series label from any sidecar in the group; fall back to the volume
+    // title, then a generic "Downloaded" for legacy sidecars with neither.
     const seriesName =
-      (sidecar.seriesName && sidecar.seriesName.length > 0 ? sidecar.seriesName : undefined) ??
-      (meta?.seriesName && meta.seriesName.length > 0 ? meta.seriesName : undefined) ??
+      firstWith((e) => nonEmpty(e.manifest.seriesName)) ??
+      firstWith((e) => nonEmpty(metaBySafeKey.get(e.readableKey)?.seriesName)) ??
       sidecarTitle ??
       metaTitle ??
       'Downloaded';
 
     const ct: ContentType =
-      (sidecar.contentType as ContentType | undefined) ??
+      firstWith((e) => e.manifest.contentType as ContentType | undefined) ??
       meta?.contentType ??
       (sidecar.type === 'audio' ? 'audio' : 'manga');
 
-    // Prefer the on-disk cover (file://) so art renders offline; otherwise the
-    // captured remote URL (online only). No library join.
+    // Prefer an on-disk cover (file://) from any volume so art renders
+    // offline; otherwise any captured remote URL (online only). No library join.
     // resolveOffline() handles both relative (new) and legacy absolute paths.
-    const coverUrl = sidecar.coverPath
-      ? toFileUri(resolveOffline(sidecar.coverPath))
-      : (sidecar.coverUrl ?? meta?.coverUrl ?? null);
+    const coverPath = firstWith((e) => nonEmpty(e.manifest.coverPath));
+    const coverUrl = coverPath
+      ? toFileUri(resolveOffline(coverPath))
+      : (firstWith((e) => nonEmpty(e.manifest.coverUrl)) ??
+        firstWith((e) => nonEmpty(metaBySafeKey.get(e.readableKey)?.coverUrl)) ??
+        null);
 
     const bytes = group.reduce((s, e) => s + e.bytes, 0);
     const lastReadAt = Math.max(0, ...group.map((e) => e.lastReadAt));

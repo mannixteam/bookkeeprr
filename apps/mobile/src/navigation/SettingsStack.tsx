@@ -1,4 +1,5 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTokens } from '@/theme/ThemeProvider';
 import type { SettingsStackParamList } from './types';
 import SettingsHome from '@/screens/settings/SettingsHome';
 import { MobAccount } from '@/screens/settings/MobAccount';
@@ -41,8 +42,16 @@ import CloudConnect from '@/screens/settings/CloudConnect';
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
 
 export function SettingsStack() {
+  const t = useTokens();
   return (
-    <Stack.Navigator initialRouteName="SettingsHome" screenOptions={{ headerShown: false }}>
+    // `contentStyle` themes the native card behind every screen — without it,
+    // the swipe-back gesture reveals the system default (white in light mode)
+    // as a page-sized border behind the outgoing card. Same fix as
+    // LibraryStack/HomeStack.
+    <Stack.Navigator
+      initialRouteName="SettingsHome"
+      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg } }}
+    >
       <Stack.Screen name="SettingsHome" component={SettingsHome} />
       <Stack.Screen name="MobAccount" component={MobAccount} />
       <Stack.Screen name="Updates" component={Updates} />

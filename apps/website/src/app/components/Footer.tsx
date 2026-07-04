@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { Logo } from '@bookkeeprr/ui';
-import { APP_VERSION } from '../../lib/version';
+import { getAppVersion } from '../../lib/version';
 
-export function Footer(): React.JSX.Element {
+export async function Footer(): Promise<React.JSX.Element> {
+  const version = await getAppVersion();
   return (
     <footer>
       <div className="wrap">
@@ -31,6 +32,7 @@ export function Footer(): React.JSX.Element {
             API reference
           </a>
           <a href="https://github.com/paulcsiki/bookkeeprr/releases">Releases</a>
+          <Link href="/privacy">Privacy</Link>
         </div>
         <div className="col">
           <h4>Community</h4>
@@ -41,7 +43,7 @@ export function Footer(): React.JSX.Element {
         </div>
         <div className="legal" style={{ gridColumn: '1 / -1' }}>
           <span>MIT licensed</span>
-          <span>v{APP_VERSION}</span>
+          <span>v{version}</span>
         </div>
       </div>
     </footer>

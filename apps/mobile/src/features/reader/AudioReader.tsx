@@ -210,11 +210,15 @@ export function AudioReader({ manifest, onBack }: AudioReaderProps) {
   // Throttle progress commits to roughly once per playback tick.
   const lastCommitRef = useRef(0);
   useEffect(() => {
+    // Until the initial resume seek lands (or playback starts), position 0 is
+    // the player's default, not the user's — committing it would wipe the
+    // saved position just by opening the reader.
+    if (!playing && globalSec <= 0) return;
     const now = Date.now();
     if (now - lastCommitRef.current < 4000) return;
     lastCommitRef.current = now;
     commit(position, { sec: globalSec });
-  }, [position, globalSec, commit]);
+  }, [position, globalSec, commit, playing]);
 
   // Reading-stats heartbeat: active while playing. Units = whole listened
   // minutes advanced since the previous heartbeat.

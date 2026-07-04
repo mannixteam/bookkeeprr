@@ -562,10 +562,15 @@ function DownloadSeriesGroup({
               flexDirection: 'row', alignItems: 'center', gap: 6,
               borderWidth: 1, borderColor: t.border, backgroundColor: withAlpha(t.primary, 0.1),
               opacity: online ? 1 : 0.4,
+              // Shrink inside the actions row instead of running off-screen.
+              flexShrink: 1, minWidth: 0,
             }}
           >
             <DownloadCloud size={13} color={t.primary} />
-            <Text style={{ fontFamily: fonts.sans.medium, fontSize: 12, color: t.primary }}>
+            <Text
+              numberOfLines={1}
+              style={{ fontFamily: fonts.sans.medium, fontSize: 12, color: t.primary, flexShrink: 1 }}
+            >
               {`Download remaining ${remainingNoun(item.contentType)}`}
             </Text>
           </Pressable>
@@ -575,7 +580,7 @@ function DownloadSeriesGroup({
       {/* Expanded per-volume list. */}
       {open ? (
         <View style={{ paddingBottom: 8 }}>
-          {item.volumes.map((v) => (
+          {item.volumes.map((v, idx) => (
             <DownloadVolumeRow
               key={v.readableKey}
               readableKey={v.readableKey}
@@ -586,6 +591,7 @@ function DownloadSeriesGroup({
               onRemove={() => onRemoveVolume(v.readableKey)}
               onRedownload={() => downloadRest()}
               redownloadDisabled={!online}
+              last={idx === item.volumes.length - 1}
             />
           ))}
         </View>

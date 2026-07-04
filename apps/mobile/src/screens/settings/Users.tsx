@@ -23,6 +23,7 @@ function UsersAdminView() {
   const t = useTokens();
   const nav = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
   const q = useUsers();
+  const me = useMe();
   const online = useIsOnline();
   const [selected, setSelected] = useState<UserRow | null>(null);
 
@@ -61,7 +62,11 @@ function UsersAdminView() {
         )}
       </ScrollView>
       {selected ? (
-        <UserActionsSheet user={selected} onDone={() => setSelected(null)} />
+        <UserActionsSheet
+          user={selected}
+          selfId={me.data?.id ?? null}
+          onDone={() => setSelected(null)}
+        />
       ) : null}
     </>
   );

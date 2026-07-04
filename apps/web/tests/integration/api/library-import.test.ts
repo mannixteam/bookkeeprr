@@ -88,6 +88,7 @@ describe('POST /api/library/import/scan', () => {
       ...item,
       best: { ...MOCK_CANDIDATE, title: item.detectedTitle },
       alternatives: [],
+      existingSeries: null,
     }));
 
     const cookie = await cookieFor('admin');

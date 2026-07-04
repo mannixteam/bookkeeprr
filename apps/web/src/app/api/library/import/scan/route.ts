@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/server/auth/require-admin';
 import { scanLibraryRootsForImport } from '@/server/importer/import-scan';
-import { matchScanItem } from '@/server/importer/match-candidate';
+import { matchScanItem, type MatchedItem } from '@/server/importer/match-candidate';
 import {
   loadExistingSeriesWithOwnedVolumes,
   isScanItemAlreadyOwned,
+  matchExistingSeries,
 } from '@/server/importer/owned-check';
 
 export const dynamic = 'force-dynamic';
@@ -44,9 +45,28 @@ export async function POST(req: Request): Promise<NextResponse> {
   // and items for brand-new series still surface.
   const unownedItems = scanItems.filter((item) => !isScanItemAlreadyOwned(item, existing));
 
-  const items = [];
-  for (let i = 0; i < unownedItems.length; i += CONCURRENCY_CAP) {
-    const batch = unownedItems.slice(i, i + CONCURRENCY_CAP);
+  // Split: items that belong to a series already in the library are matched
+  // locally (no external provider call) and offered as "add to <series>". The
+  // rest fall through to the OpenLibrary/Google Books matcher.
+  const items: MatchedItem[] = [];
+  const needsProvider: typeof unownedItems = [];
+  for (const item of unownedItems) {
+    const localMatch = matchExistingSeries(item, existing);
+    if (localMatch) {
+      items.push({
+        ...item,
+        contentType: localMatch.contentType,
+        best: null,
+        alternatives: [],
+        existingSeries: localMatch,
+      });
+    } else {
+      needsProvider.push(item);
+    }
+  }
+
+  for (let i = 0; i < needsProvider.length; i += CONCURRENCY_CAP) {
+    const batch = needsProvider.slice(i, i + CONCURRENCY_CAP);
     const results = await Promise.all(batch.map((item) => matchScanItem(item)));
     items.push(...results);
   }

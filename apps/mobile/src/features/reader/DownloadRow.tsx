@@ -160,6 +160,9 @@ type VolumeProps = {
   onRedownload?: () => void;
   /** True offline → the redownload control renders disabled with a muted cue. */
   redownloadDisabled?: boolean;
+  /** Last row of the expanded list — skip the bottom border so it doesn't
+   *  stack with the series group's own bottom border (double separator). */
+  last?: boolean;
 };
 
 /**
@@ -169,7 +172,7 @@ type VolumeProps = {
  */
 export function DownloadVolumeRow({
   readableKey, title, bytes, broken = false, timeLeftLabel,
-  onRemove, onRedownload, redownloadDisabled = false,
+  onRemove, onRedownload, redownloadDisabled = false, last = false,
 }: VolumeProps) {
   const t = useTokens();
   return (
@@ -182,7 +185,7 @@ export function DownloadVolumeRow({
         paddingVertical: 10,
         paddingLeft: 18,
         paddingRight: 4,
-        borderBottomWidth: 1,
+        borderBottomWidth: last ? 0 : 1,
         borderBottomColor: t.border,
       }}
     >

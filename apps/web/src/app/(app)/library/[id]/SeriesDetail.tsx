@@ -55,6 +55,9 @@ type Props = {
   volumeReadStates?: ReadonlyArray<[number, 'unread' | 'reading' | 'finished']>;
   /** Book series this title belongs to, if any (ebook/audiobook only). */
   bookSeries?: (BookSeriesRow & { memberCount: number }) | null;
+  /** Actual on-disk series dir derived from the tracked files (rootPath when
+   *  fileless). Shown in the Settings tab instead of a possibly stale rootPath. */
+  currentDir?: string;
 };
 
 /** Map a readableKey to its web reader route. */
@@ -79,6 +82,7 @@ export function SeriesDetail({
   resumeReadableKey = null,
   volumeReadStates = [],
   bookSeries = null,
+  currentDir,
 }: Props): React.JSX.Element {
   const title = series.titleEnglish ?? series.titleRomaji ?? `Series #${series.id}`;
   const volumeReadStateMap = new Map(volumeReadStates);
@@ -329,6 +333,7 @@ export function SeriesDetail({
             series={series}
             qualityProfiles={qualityProfiles}
             bookSeries={bookSeries}
+            currentDir={currentDir}
           />
         </TabsContent>
       </Tabs>

@@ -1,13 +1,19 @@
 import { open } from 'node:fs/promises';
 import { extname } from 'node:path';
 
-export type AudioInfo = { durationSec: number | null };
+/** An embedded chapter marker: a title and its start time in seconds. */
+export type Chapter = { title: string; startSec: number };
+export type AudioInfo = { durationSec: number | null; chapters: Chapter[] };
 
-// We never load the whole audio file (an m4b can be >1GB). We read at most a
-// 64 KB head window plus, for trailing-`moov` MP4s, a 64 KB tail window — so
-// per-call memory stays bounded (~128 KB) regardless of file size.
+// We never load the whole audio file (an m4b can be >1GB). For duration we read
+// at most a 64 KB head + 64 KB tail window. To extract chapters we additionally
+// read the full `moov` box (capped) — it holds the sample tables — plus small
+// targeted reads of the chapter title samples from `mdat`.
 const HEAD_BYTES = 64 * 1024;
 const TAIL_BYTES = 64 * 1024;
+// Cap the moov read so a pathological file can't blow memory. Real audiobook
+// moov boxes are well under this (the reference file's is ~1 MB).
+const MAX_MOOV_BYTES = 48 * 1024 * 1024;
 
 /** Read up to `length` bytes at `position`, returning the populated slice. */
 async function readWindow(
@@ -40,26 +46,39 @@ export async function describeAudio(path: string): Promise<AudioInfo> {
     const isMp4Ext = ext === '.mp4' || ext === '.m4a' || ext === '.m4b';
     const hasFtyp = head.length >= 8 && head.toString('latin1', 4, 8) === 'ftyp';
     if (isMp4Ext || hasFtyp) {
-      // Try the head first (leading-moov layout). If absent, scan a tail window
-      // (trailing-moov layout) for moov -> mvhd.
+      // Locate + read the full moov (holds mvhd duration AND the chapter sample
+      // tables). This also handles large leading-moov files the fixed 64 KB
+      // window couldn't (an audiobook moov can be ~1 MB).
+      const moov = await readMoovBox(fh, size);
+      if (moov) {
+        const durationSec = mvhdDuration(moov.buf, moov.dataStart, moov.dataEnd);
+        let chapters: Chapter[] = [];
+        try {
+          chapters = await mp4Chapters(fh, moov.buf, moov.dataStart, moov.dataEnd);
+        } catch {
+          chapters = []; // never let chapter parsing fail the whole probe
+        }
+        return { durationSec, chapters };
+      }
+      // Fallback (moov not found by the walk): the old head/tail duration probe.
       let d = mp4Duration(head);
       if (d === null && size > head.length) {
         const tailStart = Math.max(head.length, size - TAIL_BYTES);
         const tail = await readWindow(fh, tailStart, size - tailStart);
         d = mp4Duration(tail);
       }
-      return { durationSec: d };
+      return { durationSec: d, chapters: [] };
     }
 
     // MP3 (or anything with an MPEG audio frame): handle by ext or by sniffing.
     if (ext === '.mp3' || isLikelyMp3(head)) {
       const d = mp3Duration(head, size);
-      return { durationSec: d };
+      return { durationSec: d, chapters: [] };
     }
 
-    return { durationSec: null };
+    return { durationSec: null, chapters: [] };
   } catch {
-    return { durationSec: null };
+    return { durationSec: null, chapters: [] };
   } finally {
     await fh?.close();
   }
@@ -139,6 +158,358 @@ function findBox(buf: Buffer, start: number, end: number, type: string): Box | n
     p += size;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// MP4 chapter extraction (QuickTime chapter track, then Nero chpl fallback)
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk the top-level boxes and return the full `moov` box plus the offset range
+ * of its children. Reads only box headers while skipping (never the mdat), then
+ * the moov box in one bounded read.
+ */
+async function readMoovBox(
+  fh: Awaited<ReturnType<typeof open>>,
+  size: number,
+): Promise<{ buf: Buffer; dataStart: number; dataEnd: number } | null> {
+  let pos = 0;
+  while (pos + 8 <= size) {
+    const hdr = await readWindow(fh, pos, 16);
+    if (hdr.length < 8) break;
+    let boxSize = hdr.readUInt32BE(0);
+    const type = hdr.toString('latin1', 4, 8);
+    let headerLen = 8;
+    if (boxSize === 1) {
+      if (hdr.length < 16) break;
+      boxSize = hdr.readUInt32BE(8) * 0x100000000 + hdr.readUInt32BE(12);
+      headerLen = 16;
+    } else if (boxSize === 0) {
+      boxSize = size - pos;
+    }
+    if (boxSize < headerLen) break;
+    if (type === 'moov') {
+      const buf = await readWindow(fh, pos, Math.min(boxSize, MAX_MOOV_BYTES));
+      return { buf, dataStart: headerLen, dataEnd: Math.min(boxSize, buf.length) };
+    }
+    pos += boxSize;
+  }
+  return null;
+}
+
+/** All immediate child boxes of `type` within [start, end). */
+function findAllBoxes(buf: Buffer, start: number, end: number, type: string): Box[] {
+  const out: Box[] = [];
+  let p = start;
+  while (p + 8 <= end) {
+    let size = buf.readUInt32BE(p);
+    const boxType = buf.toString('latin1', p + 4, p + 8);
+    let headerLen = 8;
+    if (size === 1) {
+      if (p + 16 > end) break;
+      size = buf.readUInt32BE(p + 8) * 0x100000000 + buf.readUInt32BE(p + 12);
+      headerLen = 16;
+    } else if (size === 0) {
+      size = end - p;
+    }
+    if (size < headerLen || p + size > end) break;
+    if (boxType === type) out.push({ type, dataStart: p + headerLen, dataEnd: p + size });
+    p += size;
+  }
+  return out;
+}
+
+/** mvhd duration (seconds) from the moov children region. */
+function mvhdDuration(buf: Buffer, moovStart: number, moovEnd: number): number | null {
+  const mvhd = findBox(buf, moovStart, moovEnd, 'mvhd');
+  if (!mvhd) return null;
+  let p = mvhd.dataStart;
+  if (p + 4 > mvhd.dataEnd) return null;
+  const version = buf[p] ?? 0;
+  p += 4;
+  let timescale: number;
+  let duration: number;
+  if (version === 1) {
+    if (p + 28 > mvhd.dataEnd) return null;
+    p += 16;
+    timescale = buf.readUInt32BE(p);
+    p += 4;
+    duration = buf.readUInt32BE(p) * 0x100000000 + buf.readUInt32BE(p + 4);
+  } else {
+    if (p + 16 > mvhd.dataEnd) return null;
+    p += 8;
+    timescale = buf.readUInt32BE(p);
+    p += 4;
+    duration = buf.readUInt32BE(p);
+  }
+  if (!timescale || timescale <= 0) return null;
+  const sec = duration / timescale;
+  return sec > 0 ? sec : null;
+}
+
+/** track_ID from a tkhd box. */
+function trackIdFromTkhd(buf: Buffer, tkhd: Box): number | null {
+  const version = buf[tkhd.dataStart] ?? 0;
+  const p = tkhd.dataStart + 4 + (version === 1 ? 16 : 8);
+  if (p + 4 > tkhd.dataEnd) return null;
+  return buf.readUInt32BE(p);
+}
+
+/** handler type (e.g. 'soun', 'text') from a trak's mdia/hdlr. */
+function handlerOf(buf: Buffer, mdia: Box): string {
+  const hdlr = findBox(buf, mdia.dataStart, mdia.dataEnd, 'hdlr');
+  if (!hdlr || hdlr.dataStart + 12 > hdlr.dataEnd) return '';
+  return buf.toString('latin1', hdlr.dataStart + 8, hdlr.dataStart + 12);
+}
+
+/** mdhd media timescale for a trak's mdia. */
+function mdhdTimescale(buf: Buffer, mdia: Box): number | null {
+  const mdhd = findBox(buf, mdia.dataStart, mdia.dataEnd, 'mdhd');
+  if (!mdhd) return null;
+  const version = buf[mdhd.dataStart] ?? 0;
+  const p = mdhd.dataStart + 4 + (version === 1 ? 16 : 8);
+  if (p + 4 > mdhd.dataEnd) return null;
+  const ts = buf.readUInt32BE(p);
+  return ts > 0 ? ts : null;
+}
+
+/**
+ * Extract embedded chapters from a moov: prefer a QuickTime chapter TRACK
+ * (Apple/Audible), then fall back to a Nero `chpl` atom. Returns [] when neither
+ * is present or parseable.
+ */
+async function mp4Chapters(
+  fh: Awaited<ReturnType<typeof open>>,
+  buf: Buffer,
+  moovStart: number,
+  moovEnd: number,
+): Promise<Chapter[]> {
+  const qt = await qtChapters(fh, buf, moovStart, moovEnd);
+  if (qt.length > 0) return qt;
+  return neroChplChapters(buf, moovStart, moovEnd);
+}
+
+/** QuickTime chapter track: title text samples in mdat, timed by the track stts. */
+async function qtChapters(
+  fh: Awaited<ReturnType<typeof open>>,
+  buf: Buffer,
+  moovStart: number,
+  moovEnd: number,
+): Promise<Chapter[]> {
+  const traks = findAllBoxes(buf, moovStart, moovEnd, 'trak');
+
+  // Chapter-track ids referenced by an audio track's `tref -> chap`.
+  const chapIds = new Set<number>();
+  for (const tr of traks) {
+    const mdia = findBox(buf, tr.dataStart, tr.dataEnd, 'mdia');
+    if (!mdia || handlerOf(buf, mdia) !== 'soun') continue;
+    const tref = findBox(buf, tr.dataStart, tr.dataEnd, 'tref');
+    const chap = tref && findBox(buf, tref.dataStart, tref.dataEnd, 'chap');
+    if (chap) {
+      for (let p = chap.dataStart; p + 4 <= chap.dataEnd; p += 4) chapIds.add(buf.readUInt32BE(p));
+    }
+  }
+
+  // Pick the chapter track: the tref-referenced one, else a lone 'text' track.
+  let chapterMdia: Box | null = null;
+  for (const tr of traks) {
+    const mdia = findBox(buf, tr.dataStart, tr.dataEnd, 'mdia');
+    if (!mdia || handlerOf(buf, mdia) !== 'text') continue;
+    const tkhd = findBox(buf, tr.dataStart, tr.dataEnd, 'tkhd');
+    const id = tkhd ? trackIdFromTkhd(buf, tkhd) : null;
+    if ((id !== null && chapIds.has(id)) || chapIds.size === 0) {
+      chapterMdia = mdia;
+      break;
+    }
+  }
+  if (!chapterMdia) return [];
+
+  const timescale = mdhdTimescale(buf, chapterMdia);
+  if (!timescale) return [];
+  const minf = findBox(buf, chapterMdia.dataStart, chapterMdia.dataEnd, 'minf');
+  const stbl = minf && findBox(buf, minf.dataStart, minf.dataEnd, 'stbl');
+  if (!stbl) return [];
+
+  const deltas = parseStts(buf, findBox(buf, stbl.dataStart, stbl.dataEnd, 'stts'));
+  const sizes = parseStsz(buf, findBox(buf, stbl.dataStart, stbl.dataEnd, 'stsz'));
+  const chunkOffsets = parseChunkOffsets(buf, stbl);
+  const stsc = parseStsc(buf, findBox(buf, stbl.dataStart, stbl.dataEnd, 'stsc'));
+  if (!sizes.length || !chunkOffsets.length || !stsc.length) return [];
+
+  const count = sizes.length;
+  const offsets = sampleFileOffsets(count, sizes, chunkOffsets, stsc);
+  if (offsets.length !== count) return [];
+
+  // Cumulative start time (ticks) of each sample from the per-sample deltas.
+  const starts: number[] = [];
+  let acc = 0;
+  for (let i = 0; i < count; i++) {
+    starts.push(acc);
+    acc += deltas[i] ?? 0;
+  }
+
+  const chapters: Chapter[] = [];
+  for (let i = 0; i < count; i++) {
+    const sz = sizes[i]!;
+    if (sz < 2 || sz > 4096) continue; // sane text-sample bound
+    const raw = await readWindow(fh, offsets[i]!, sz);
+    if (raw.length < 2) continue;
+    const textLen = raw.readUInt16BE(0);
+    if (textLen === 0 || 2 + textLen > raw.length) continue;
+    const title = raw.toString('utf8', 2, 2 + textLen).trim();
+    if (title) chapters.push({ title, startSec: starts[i]! / timescale });
+  }
+  return chapters;
+}
+
+/** stts -> flat array of per-sample deltas (ticks). */
+function parseStts(buf: Buffer, stts: Box | null): number[] {
+  if (!stts) return [];
+  let p = stts.dataStart + 4;
+  if (p + 4 > stts.dataEnd) return [];
+  const n = buf.readUInt32BE(p);
+  p += 4;
+  const out: number[] = [];
+  for (let i = 0; i < n && p + 8 <= stts.dataEnd; i++) {
+    const cnt = buf.readUInt32BE(p);
+    const delta = buf.readUInt32BE(p + 4);
+    p += 8;
+    for (let j = 0; j < cnt && out.length < 100000; j++) out.push(delta);
+  }
+  return out;
+}
+
+/** stsz -> per-sample byte sizes. */
+function parseStsz(buf: Buffer, stsz: Box | null): number[] {
+  if (!stsz) return [];
+  let p = stsz.dataStart + 4;
+  if (p + 8 > stsz.dataEnd) return [];
+  const sampleSize = buf.readUInt32BE(p);
+  const count = buf.readUInt32BE(p + 4);
+  p += 8;
+  const out: number[] = [];
+  if (sampleSize !== 0) {
+    for (let i = 0; i < count && i < 100000; i++) out.push(sampleSize);
+    return out;
+  }
+  for (let i = 0; i < count && p + 4 <= stsz.dataEnd; i++) {
+    out.push(buf.readUInt32BE(p));
+    p += 4;
+  }
+  return out;
+}
+
+/** stco (32-bit) or co64 (64-bit) -> chunk file offsets. */
+function parseChunkOffsets(buf: Buffer, stbl: Box): number[] {
+  let box = findBox(buf, stbl.dataStart, stbl.dataEnd, 'stco');
+  let wide = false;
+  if (!box) {
+    box = findBox(buf, stbl.dataStart, stbl.dataEnd, 'co64');
+    wide = true;
+  }
+  if (!box) return [];
+  let p = box.dataStart + 4;
+  if (p + 4 > box.dataEnd) return [];
+  const n = buf.readUInt32BE(p);
+  p += 4;
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (wide) {
+      if (p + 8 > box.dataEnd) break;
+      out.push(buf.readUInt32BE(p) * 0x100000000 + buf.readUInt32BE(p + 4));
+      p += 8;
+    } else {
+      if (p + 4 > box.dataEnd) break;
+      out.push(buf.readUInt32BE(p));
+      p += 4;
+    }
+  }
+  return out;
+}
+
+/** stsc -> [firstChunk, samplesPerChunk, descIdx] entries (chunk index 1-based). */
+function parseStsc(buf: Buffer, stsc: Box | null): [number, number, number][] {
+  if (!stsc) return [];
+  let p = stsc.dataStart + 4;
+  if (p + 4 > stsc.dataEnd) return [];
+  const n = buf.readUInt32BE(p);
+  p += 4;
+  const out: [number, number, number][] = [];
+  for (let i = 0; i < n && p + 12 <= stsc.dataEnd; i++) {
+    out.push([buf.readUInt32BE(p), buf.readUInt32BE(p + 4), buf.readUInt32BE(p + 8)]);
+    p += 12;
+  }
+  return out;
+}
+
+/** Map each sample to its absolute file offset via the stsc chunk table. */
+function sampleFileOffsets(
+  count: number,
+  sizes: number[],
+  chunkOffsets: number[],
+  stsc: [number, number, number][],
+): number[] {
+  // samples-per-chunk for each 1-based chunk index.
+  const spc: number[] = new Array(chunkOffsets.length + 1).fill(0);
+  for (let e = 0; e < stsc.length; e++) {
+    const first = stsc[e]![0];
+    const per = stsc[e]![1];
+    const nextFirst = e + 1 < stsc.length ? stsc[e + 1]![0] : chunkOffsets.length + 1;
+    for (let c = first; c < nextFirst; c++) if (c >= 1 && c <= chunkOffsets.length) spc[c] = per;
+  }
+  const offsets: number[] = [];
+  let sample = 0;
+  for (let c = 1; c <= chunkOffsets.length && sample < count; c++) {
+    let within = chunkOffsets[c - 1]!;
+    const per = spc[c] || 0;
+    for (let s = 0; s < per && sample < count; s++) {
+      offsets.push(within);
+      within += sizes[sample] ?? 0;
+      sample++;
+    }
+  }
+  return offsets;
+}
+
+/**
+ * Nero `chpl` chapter list (moov/udta/chpl). Timestamps are in 100-ns units.
+ * The bytes between the fullbox header and the entries differ between writers
+ * (some emit 1 reserved byte, some 4), so try a few offsets for the 1-byte
+ * chapter count and keep the first that parses to a consistent, monotonic list.
+ */
+function neroChplChapters(buf: Buffer, moovStart: number, moovEnd: number): Chapter[] {
+  const udta = findBox(buf, moovStart, moovEnd, 'udta');
+  if (!udta) return [];
+  const chpl = findBox(buf, udta.dataStart, udta.dataEnd, 'chpl');
+  if (!chpl) return [];
+  for (const pre of [4, 5, 8]) {
+    const countPos = chpl.dataStart + pre;
+    if (countPos + 1 > chpl.dataEnd) continue;
+    const count = buf[countPos] ?? 0;
+    if (count === 0 || count > 2000) continue;
+    const parsed = tryParseChpl(buf, countPos + 1, chpl.dataEnd, count);
+    if (parsed) return parsed;
+  }
+  return [];
+}
+
+function tryParseChpl(buf: Buffer, start: number, end: number, count: number): Chapter[] | null {
+  const out: Chapter[] = [];
+  let p = start;
+  let prev = -1;
+  for (let i = 0; i < count; i++) {
+    if (p + 9 > end) return null;
+    const ts = buf.readUInt32BE(p) * 0x100000000 + buf.readUInt32BE(p + 4);
+    const len = buf[p + 8] ?? 0;
+    p += 9;
+    if (p + len > end) return null;
+    if (ts < prev) return null; // must be monotonic
+    prev = ts;
+    const title = buf.toString('utf8', p, p + len).trim();
+    p += len;
+    out.push({ title, startSec: ts / 10_000_000 });
+  }
+  return out.length ? out : null;
 }
 
 // ---------------------------------------------------------------------------

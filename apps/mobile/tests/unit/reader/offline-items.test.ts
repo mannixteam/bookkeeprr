@@ -40,6 +40,45 @@ describe('mapOfflineGroups', () => {
     expect(items[0]!.downloadedAt).toBe(1234);
   });
 
+  it('resolves the series name + cover from ANY volume in the group (not just the first)', () => {
+    // The Bunny Drop bug: the first-on-disk volume (6) carried no seriesName
+    // and no cover, so the whole series row showed "Volume 6" with a blank
+    // cover even though volume 5's sidecar had both.
+    const items = mapOfflineGroups([
+      entry({
+        readableKey: 'vol6',
+        bytes: 54_000_000,
+        manifest: {
+          type: 'comics',
+          localPaths: ['reader/vol6/page-0'],
+          title: 'Volume 6',
+          seriesId: 42,
+          volumeId: 6,
+          downloadedAt: 200,
+        },
+      }),
+      entry({
+        readableKey: 'vol5',
+        bytes: 60_000_000,
+        manifest: {
+          type: 'comics',
+          localPaths: ['reader/vol5/page-0'],
+          coverPath: 'reader/vol5/cover.img',
+          title: 'Volume 5',
+          seriesName: 'Bunny Drop',
+          contentType: 'manga',
+          seriesId: 42,
+          volumeId: 5,
+          downloadedAt: 100,
+        },
+      }),
+    ]);
+    expect(items).toHaveLength(1);
+    expect(items[0]!.seriesName).toBe('Bunny Drop');
+    expect(items[0]!.coverUrl).toBe('file:///mock/Documents/reader/vol5/cover.img');
+    expect(items[0]!.volumes).toHaveLength(2);
+  });
+
   it('marks a download broken when files are missing (no localPaths)', () => {
     const items = mapOfflineGroups([
       entry({

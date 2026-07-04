@@ -1,23 +1,27 @@
 import { NextResponse } from 'next/server';
 import { MeDeleteBody as DeleteBody } from '@/server/openapi/schemas/auth';
-import { getSessionByToken } from '@/server/db/sessions';
+import { authenticateRequest } from '@/server/auth/session-middleware';
 import { getUser, deleteUser } from '@/server/db/users';
-import { readSessionCookie, clearSessionCookie } from '@/server/auth/session-cookie';
+import { clearSessionCookie } from '@/server/auth/session-cookie';
 import { verifyPassword } from '@/server/auth/password';
+import type { UserRow } from '@/server/db/schema';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Resolve the requesting user via any user credential — session cookie (web)
+ * or bearer token (mobile). The X-Api-Key 'system' actor has no user, so it
+ * resolves to null (the mobile 2FA screen loads its account via this route).
+ */
+async function resolveUser(req: Request): Promise<UserRow | null> {
+  const result = await authenticateRequest(req as Parameters<typeof authenticateRequest>[0]);
+  if (result.kind !== 'authenticated' || result.actor === 'system') return null;
+  return getUser(result.actor.userId);
+}
+
 export async function GET(req: Request): Promise<NextResponse> {
-  const token = readSessionCookie(req);
-  if (token === null) return NextResponse.json({ user: null });
-  const session = await getSessionByToken(token);
-  if (session === null || session.expiresAt <= new Date()) {
-    return NextResponse.json({ user: null });
-  }
-  const user = await getUser(session.userId);
-  if (user === null || user.disabled) {
-    return NextResponse.json({ user: null });
-  }
+  const user = await resolveUser(req);
+  if (user === null || user.disabled) return NextResponse.json({ user: null });
   return NextResponse.json({
     user: {
       id: user.id,
@@ -34,15 +38,7 @@ export async function GET(req: Request): Promise<NextResponse> {
 }
 
 export async function DELETE(req: Request): Promise<NextResponse> {
-  const token = readSessionCookie(req);
-  if (token === null) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  }
-  const session = await getSessionByToken(token);
-  if (session === null || session.expiresAt <= new Date()) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  }
-  const user = await getUser(session.userId);
+  const user = await resolveUser(req);
   if (user === null || user.disabled) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }

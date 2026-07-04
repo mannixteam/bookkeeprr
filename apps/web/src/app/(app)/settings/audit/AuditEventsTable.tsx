@@ -9,6 +9,7 @@ import { VirtualList } from '@/components/ui/virtual-list';
 import { RelativeTime } from '@/components/RelativeTime';
 import { apiFetch } from '@/lib/api-fetch';
 import type { AuditEventRow } from '@/server/db/audit';
+import { buildAuditMetadata } from './metadata';
 
 type Props = {
   initialRows: AuditEventRow[];
@@ -23,34 +24,12 @@ const BODY_ROW = `${COLS} items-center px-4 py-3 text-[13px] text-foreground/80`
 
 // Friendlier labels for the common metadata keys; others fall back to the key.
 const META_LABELS: Record<string, string> = {
+  ip: 'IP',
   changedFields: 'Changed',
   path: 'Path',
   reason: 'Reason',
+  details: 'Details',
 };
-
-/**
- * Parses the stored metadata JSON. Returns `{ obj }` for a plain object,
- * `{ text }` for any other shape (raw string, array, scalar), or `null` when
- * there's nothing to show.
- */
-function parseMetadata(
-  json: string | null,
-): { obj: Record<string, unknown> } | { text: string } | null {
-  if (json === null || json.length === 0) return null;
-  try {
-    const parsed = JSON.parse(json) as unknown;
-    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const obj = parsed as Record<string, unknown>;
-      if (Object.entries(obj).filter(([, v]) => v != null).length === 0) return null;
-      return { obj };
-    }
-    // Array / scalar — fall back to a compact JSON string.
-    return { text: JSON.stringify(parsed) };
-  } catch {
-    // Not JSON — show the raw text.
-    return { text: json };
-  }
-}
 
 /** Formats a single metadata value for display (compact JSON for objects). */
 function formatValue(v: unknown): string {
@@ -58,21 +37,18 @@ function formatValue(v: unknown): string {
 }
 
 /**
- * Compact, single-line metadata preview that fits the column. Plain objects
- * render as label · value chips (truncated); other shapes render as truncated
- * text. The full dump lives in the expansion panel.
+ * Compact, single-line metadata preview that fits the column. Renders the
+ * merged metadata (request IP + stored metadata) as label · value chips,
+ * truncated; the full dump lives in the expansion panel.
  */
-function MetadataPreview({ json }: { json: string | null }): React.JSX.Element {
-  const parsed = parseMetadata(json);
-  if (parsed === null) return <span className="text-muted-foreground">—</span>;
-  if ('text' in parsed) {
-    return (
-      <span className="truncate font-mono text-[12px] text-muted-foreground" title={parsed.text}>
-        {parsed.text}
-      </span>
-    );
-  }
-  const entries = Object.entries(parsed.obj).filter(([, v]) => v != null);
+function MetadataPreview({
+  meta,
+}: {
+  meta: Record<string, unknown> | null;
+}): React.JSX.Element {
+  if (meta === null) return <span className="text-muted-foreground">—</span>;
+  const entries = Object.entries(meta).filter(([, v]) => v != null);
+  if (entries.length === 0) return <span className="text-muted-foreground">—</span>;
   return (
     <span className="flex min-w-0 items-center gap-x-3 overflow-hidden whitespace-nowrap">
       {entries.map(([k, v]) => (
@@ -104,19 +80,15 @@ function MetadataPreview({ json }: { json: string | null }): React.JSX.Element {
  * The expanded drawer: full metadata as a key → value property list. Object and
  * array values render as compact JSON. Scrolls past ~280px tall.
  */
-function MetadataPanel({ json }: { json: string | null }): React.JSX.Element {
-  const parsed = parseMetadata(json);
-  if (parsed === null) {
+function MetadataPanel({
+  meta,
+}: {
+  meta: Record<string, unknown> | null;
+}): React.JSX.Element {
+  if (meta === null) {
     return <span className="font-mono text-[12px] text-muted-foreground">No metadata.</span>;
   }
-  if ('text' in parsed) {
-    return (
-      <pre className="max-h-[280px] overflow-auto whitespace-pre-wrap break-all font-mono text-[12px] text-foreground/90">
-        {parsed.text}
-      </pre>
-    );
-  }
-  const entries = Object.entries(parsed.obj);
+  const entries = Object.entries(meta);
   return (
     <dl className="max-h-[280px] overflow-auto">
       {entries.map(([k, v]) => (
@@ -213,6 +185,7 @@ export function AuditEventsTable({ initialRows, initialTotal }: Props): React.JS
             dynamicHeight
             renderItem={(r) => {
               const expanded = expandedId === r.id;
+              const meta = buildAuditMetadata(r);
               return (
                 <div className="border-t border-border">
                   <div
@@ -230,7 +203,7 @@ export function AuditEventsTable({ initialRows, initialTotal }: Props): React.JS
                     <span className="font-mono text-muted-foreground">
                       {r.targetKind !== null ? `${r.targetKind}:${r.targetId}` : '—'}
                     </span>
-                    <MetadataPreview json={r.metadataJson} />
+                    <MetadataPreview meta={meta} />
                     <button
                       type="button"
                       aria-expanded={expanded}
@@ -245,7 +218,7 @@ export function AuditEventsTable({ initialRows, initialTotal }: Props): React.JS
                   </div>
                   {expanded ? (
                     <div className="border-t border-border bg-muted/40 px-4 py-3">
-                      <MetadataPanel json={r.metadataJson} />
+                      <MetadataPanel meta={meta} />
                     </div>
                   ) : null}
                 </div>

@@ -30,6 +30,9 @@ const ISSUE_RANGE_RE =
   /(?<!Annual\s)(?<!Special\s)(?<!FCBD\s)#\s*(\d+(?:\.\d+)?)\s*-\s*#?\s*(\d+(?:\.\d+)?)\b/;
 const ISSUE_SINGLE_RE = /(?<!Annual\s)(?<!Special\s)(?<!FCBD\s)#\s*(\d+(?:\.\d+)?)\b/;
 
+// Trailing "(N)" counter, 1-3 digits (excludes 4-digit years). Last-resort volume.
+const PAREN_COUNTER_RE = /\((\d{1,3})\)\s*$/;
+
 export function parseFilename(filename: string): ParsedFilename {
   const stem = filename.replace(EXT_RE, '');
 
@@ -84,8 +87,22 @@ export function parseFilename(filename: string): ParsedFilename {
     }
   }
 
+  // Last-resort: a trailing parenthetical counter, e.g. "Title - c [] (3)" or
+  // "Title (5)", read as the volume. 1-3 digits only so 4-digit years like
+  // "(2021)" never match. Weak signal (paren-counter confidence), used only when
+  // no v/ch/issue pattern matched — recovers degraded library filenames whose
+  // volume number survives only as a "(N)" suffix.
+  if (volume === null && chapter === null) {
+    const mp = stripped.match(/\((\d{1,3})\)\s*$/);
+    if (mp && mp[1]) {
+      volume = parseInt(mp[1], 10);
+      matched = { name: 'paren-counter', re: PAREN_COUNTER_RE, kind: 'volume' };
+    }
+  }
+
   let confidence: number;
-  if (volume !== null && group) confidence = 0.95;
+  if (matched?.name === 'paren-counter') confidence = 0.3;
+  else if (volume !== null && group) confidence = 0.95;
   else if (volume !== null) confidence = 0.9;
   else if (chapter !== null && group && !isRangeChapter) confidence = 0.9;
   else if (chapter !== null) confidence = 0.85;

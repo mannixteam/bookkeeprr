@@ -167,6 +167,13 @@ export const SeriesListQuery = z.object({
   q: z.string().trim().min(1).max(200).optional(),
 });
 
+/** DELETE /api/series/{id} query. `deleteFiles=true` also removes the series'
+ *  files on disk (folder mode with library-root guards) and its qBittorrent
+ *  torrents (with data, best-effort). Default keeps today's DB-only delete. */
+export const SeriesDeleteQuery = z.object({
+  deleteFiles: z.enum(['true', 'false']).default('false'),
+});
+
 /** PATCH /api/series/{id} request body — strict (unknown fields rejected). */
 export const SeriesPatchBody = z
   .object({
@@ -400,9 +407,12 @@ export const EbookSearchHit = z.object({
   coverUrl: z.string().nullable(),
 });
 
-/** Audnex hit (src/server/integrations/audnex/client.ts). */
+/** iTunes audiobook hit (src/server/integrations/itunes/client.ts), mapped to
+ *  the search shape. `asin` is null — iTunes carries no Amazon ASIN (the create
+ *  flow's asin is optional and audiobook_hydrate re-searches iTunes by title);
+ *  narrator/runtimeMinutes are null for the same reason. */
 export const AudiobookSearchHit = z.object({
-  asin: z.string(),
+  asin: z.string().nullable(),
   title: z.string(),
   author: z.string().nullable(),
   narrator: z.string().nullable(),

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { MeNotificationsPatchBody as PatchBody } from '@/server/openapi/schemas/auth';
-import { getSessionByToken } from '@/server/db/sessions';
-import { getUser } from '@/server/db/users';
-import { readSessionCookie } from '@/server/auth/session-cookie';
+import { authenticateRequest } from '@/server/auth/session-middleware';
 import {
   getOrCreateNotificationPrefs,
   updateNotificationPrefs,
@@ -15,19 +13,13 @@ export const dynamic = 'force-dynamic';
 async function authenticate(
   req: Request,
 ): Promise<{ userId: number } | NextResponse> {
-  const token = readSessionCookie(req);
-  if (token === null) {
+  // Any user credential works — session cookie (web) or bearer token (mobile).
+  // The X-Api-Key 'system' actor has no user, so it cannot read/patch prefs.
+  const result = await authenticateRequest(req as Parameters<typeof authenticateRequest>[0]);
+  if (result.kind !== 'authenticated' || result.actor === 'system') {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
-  const session = await getSessionByToken(token);
-  if (session === null || session.expiresAt <= new Date()) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  }
-  const user = await getUser(session.userId);
-  if (user === null || user.disabled) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  }
-  return { userId: user.id };
+  return { userId: result.actor.userId };
 }
 
 export async function GET(req: Request): Promise<NextResponse> {

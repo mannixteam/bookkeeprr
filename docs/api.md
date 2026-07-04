@@ -123,7 +123,7 @@ If you're not deploying behind a reverse proxy that handles TLS, the cookie's `S
 | GET        | `/api/auth/sessions`                          | List my sessions; `id` is the first 12 chars of each token.                                                                                                                     |
 | DELETE     | `/api/auth/sessions/[tokenPrefix]`            | Revoke another session by token prefix. 400 for the current session (use logout); 409 when the prefix is ambiguous.                                                             |
 
-Auth-mode reality: the gate exempts all of `/api/auth/*`; each handler self-gates. `me`, `me/profile`, `me/notifications`, `change-password`, `sessions`, `logout/all` read the session **cookie** directly (bearer/X-Api-Key won't work); `me/api-keys` and `me/totp*` accept any user credential but reject the X-Api-Key "system" actor. Errors across this family use the `{ "message": "..." }` envelope.
+Auth-mode reality: the gate exempts all of `/api/auth/*`; each handler self-gates. `me/profile`, `change-password`, `logout/all` read the session **cookie** directly (bearer/X-Api-Key won't work); `me`, `me/api-keys`, `me/totp*`, `me/notifications`, and `sessions` accept any user credential but reject the X-Api-Key "system" actor (the mobile app relies on bearer for the sessions, notifications, and 2FA screens). Errors across this family use the `{ "message": "..." }` envelope.
 
 ### User-management endpoints (admin-only)
 
@@ -237,9 +237,11 @@ Partial update. Body is strict (extra fields rejected). Updatable: `titleEnglish
 
 ### `DELETE /api/series/[id]`
 
-Permanent. Cascades to volumes, chapters, releases, downloads, library_files rows. Files on disk are **not** touched.
+Permanent. Cascades to volumes, chapters, releases, downloads, library_files rows.
 
-**204** on success. **400** invalid id.
+**Query:** `deleteFiles` (`true` | `false`, default `false`). When `true`, the series' files are also deleted from disk and its torrents are removed from qBittorrent with their data (best-effort - a qBittorrent failure is recorded in the audit log but never blocks the delete). The series folder is removed recursively when it lies strictly inside the content type's library root and no other series tracks files inside it; otherwise each tracked file is unlinked individually and parent folders are left alone. Missing files are skipped, so retrying after a partial failure is safe.
+
+**204** on success. **400** invalid id or malformed `deleteFiles`. **500** disk deletion failed - the series is NOT deleted so the operation can be retried.
 
 ### `GET /api/series/search`
 
@@ -247,7 +249,7 @@ Federated metadata search.
 
 **Query:** `q` (required) · `contentType` (`manga` | `comic` | `light_novel` | `ebook` | `audiobook`, default `manga`)
 
-**200:** shape depends on type. Manga returns `{ contentType, hits: [...] }`. Comic/LN/ebook/audiobook return `{ contentType, results: [...] }`. The per-type element shape mirrors each provider's hit row (AniList, ComicVine, OpenLibrary, Audnex).
+**200:** shape depends on type. Manga returns `{ contentType, hits: [...] }`. Comic/LN/ebook/audiobook return `{ contentType, results: [...] }`. The per-type element shape mirrors each provider's hit row (AniList, ComicVine, OpenLibrary, iTunes). The audiobook branch searches iTunes (Audnex has no title-search endpoint), so each hit's `asin`, `narrator`, and `runtimeMinutes` are `null` — the add flow creates the series without an ASIN (`AudiobookBody.asin` is optional) and hydrates by title.
 
 **502** upstream provider failure. **503** ComicVine not configured (only on `contentType=comic`).
 
@@ -632,13 +634,13 @@ Two-step import pipeline for adopting files that already exist on disk but are n
 
 #### `POST /api/library/import/scan`
 
-Admin only. No body. Scans every configured library root for files not already tracked as `library_file` rows, queries OpenLibrary and Google Books for each found item (parallelized, cap 8), and returns the results. Provider failures are swallowed silently - an item whose lookup fails gets `best: null` and `alternatives: []`.
+Admin only. No body. Scans every configured library root for files not already tracked as `library_file` rows, then classifies each. Each physical file is scanned once even when two content types share a directory (`light_novel`+`ebook` → `books`, `manga`+`comic` → `comics`). A file whose parsed title matches a series already in the library is returned with an `existingSeries` match (its `best` stays `null`, no provider call is made). The rest are queried against a metadata provider by content type - **audiobooks** use the iTunes audiobook catalog (`Candidate.source: "itunes"`), everything else uses OpenLibrary and Google Books (parallelized, cap 8) - with the parser-cleaned title (publisher/scanlator brackets and volume tags stripped, and an `Author - Title` separator collapsed). Provider failures are swallowed silently - an item whose lookup fails gets `best: null` and `alternatives: []`.
 
-**200:** `{ "items": [{ "path", "detectedTitle", "contentType", "files", "sizeBytes", "best": { "sourceId", "title", "author", "year", "isbn", "coverUrl", "source" } | null, "alternatives": [...] }] }`.
+**200:** `{ "items": [{ "path", "detectedTitle", "contentType", "files", "sizeBytes", "best": Candidate | null, "alternatives": [Candidate], "existingSeries": { "seriesId", "title", "contentType", "volume" } | null }] }`. When `existingSeries` is set, its `contentType` is authoritative (overrides the scan guess) and `volume` is the volume parsed from the filename.
 
 #### `POST /api/library/import`
 
-Admin only. **Body:** `{ "rows": [{ "item": ScanItem, "match": Candidate, "monitor": true, "qualityProfileId": 1 }] }`. For each row: finds or creates the series record (by provider id, then by `title+contentType`), ensures volume 1 exists, and inserts a `library_file` row for each untracked file. Fully idempotent - re-running the same rows creates 0 new rows. Rows whose content type is unsupported for direct import (e.g. manga/comic) or that fail for any reason are skipped rather than aborting the batch - they appear in `skipped`.
+Admin only. **Body:** `{ "rows": [{ "item": ScanItem, "match": Candidate | null, "existingSeries": { "seriesId", "title", "contentType", "volume" } | null, "monitor": true, "qualityProfileId": 1 }] }`. Each row adopts in one of two modes: with `existingSeries` set, the file is adopted into that library series at the parsed `volume` (the volume is created if missing) and the series' monitoring is left untouched; otherwise `match` drives it - finds or creates the series record (by provider id, then by `title+contentType`), ensures volume 1 exists, and reconciles monitoring. Either way a `library_file` row is inserted for each untracked file. Fully idempotent - re-running the same rows creates 0 new rows. Rows whose content type is unsupported for direct import (e.g. a new manga/comic series) or that fail for any reason are skipped rather than aborting the batch - they appear in `skipped`.
 
 **200:** `{ "imported": 1, "seriesIds": [42], "skipped": [] }`. `imported` is the number of new `library_file` rows created; `seriesIds` is the deduplicated list of series ids touched; `skipped` is an array of `{ "path": string, "reason": string }` for each row that could not be adopted.
 
@@ -983,7 +985,7 @@ Calibre-Web-targeted adapter that exposes a subset of Readarr's v1 API. The nati
 | POST   | `/api/readarr/v1/author`          | Add a series to monitoring.                                           |
 | GET    | `/api/readarr/v1/author/{id}`     | Single author detail.                                                 |
 | PUT    | `/api/readarr/v1/author/{id}`     | Update `rootPath`, `monitoring`, `qualityProfileId`.                  |
-| DELETE | `/api/readarr/v1/author/{id}`     | Delete the bookkeeprr series (files on disk untouched).               |
+| DELETE | `/api/readarr/v1/author/{id}`     | Delete the bookkeeprr series. Honors `deleteFiles=true` (also removes files on disk + torrents); otherwise files are untouched. |
 | GET    | `/api/readarr/v1/author/lookup`   | Federated metadata search (`?term=…`), 5 providers.                   |
 | GET    | `/api/readarr/v1/book`            | Books (= volumes of all series).                                      |
 | POST   | `/api/readarr/v1/book`            | Add a single-volume series.                                           |
