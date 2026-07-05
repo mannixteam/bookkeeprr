@@ -29,35 +29,35 @@ test.describe('Naming settings', () => {
 
     const expected: Record<string, Record<string, string>> = {
       manga: {
-        series_folder: '{series_title}',
+        series_folder: '{group_path}/{series_title}',
         volume: '{series_title} - v{volume:00} [{group}].{ext}',
         chapter: '{series_title} - c{chapter:000} [{group}].{ext}',
         batch: '{series_title} - c{chapter_range} [{group}].{ext}',
         volume_subfolder: '',
       },
       comic: {
-        series_folder: '{publisher}/{series_title} ({series_year})',
+        series_folder: '{group_path}/{publisher}/{series_title} ({series_year})',
         volume: '{series_title} v{volume:00} [{group}].{ext}',
         chapter: '{series_title} #{chapter:000} [{group}].{ext}',
         batch: '{series_title} #{chapter_range} [{group}].{ext}',
         volume_subfolder: '',
       },
       light_novel: {
-        series_folder: '{author}/{series_title} Light Novel',
+        series_folder: '{group_path}/{author}/{series_title} Light Novel',
         volume: '{series_title} - v{volume:00} [{group}].{ext}',
         chapter: '{series_title} - c{chapter:000} [{group}].{ext}',
         batch: '{series_title} - c{chapter_range} [{group}].{ext}',
         volume_subfolder: '',
       },
       ebook: {
-        series_folder: '{author}/{series_title}',
+        series_folder: '{group_path}/{author}/{series_title}',
         volume: '{series_title} - v{volume:00} [{group}].{ext}',
         chapter: '{series_title} - c{chapter:000} [{group}].{ext}',
         batch: '{series_title} - c{chapter_range} [{group}].{ext}',
         volume_subfolder: '',
       },
       audiobook: {
-        series_folder: '{author}/{series_title}',
+        series_folder: '{group_path}/{author}/{series_title}',
         volume: '{series_title}.{ext}',
         chapter: '{series_title} - chapter {chapter}.{ext}',
         batch: '{series_title} - chapters {chapter_range}.{ext}',

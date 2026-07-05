@@ -27,6 +27,12 @@ async function loggedIn(page: Page): Promise<void> {
 test.describe('Web reader', () => {
   test('comics reader shows a page image and advancing changes the src', async ({ page }) => {
     await loggedIn(page);
+    // Diagnostic breadcrumb for CI (artifacts exceed the upload limit there):
+    // the manifest response tells us WHY the reader failed to mount, if it does.
+    const probe = await page.request.get(`/api/reader/manifest?fileId=${seed.comic.fileId}`);
+    console.log(
+      `[reader-diag] manifest fileId=${seed.comic.fileId} → ${probe.status()} ${(await probe.text()).slice(0, 300)}`,
+    );
     await page.goto(`/read/f/${seed.comic.fileId}`);
 
     const img = page.getByAltText('Page 1');
@@ -142,13 +148,52 @@ test.describe('Web reader', () => {
     });
     expect(put.ok()).toBe(true);
 
+    // Earlier reader tests flush their debounced progress with a keepalive
+    // fetch when their page closes — such a write can land AFTER the PUT above
+    // and un-finish the row. Settle, re-mark, and verify before opening.
+    await page.waitForTimeout(1500);
+    await page.request.put(`/api/reader/progress/${encodeURIComponent(key)}`, {
+      data: {
+        position: 1,
+        locator: { page: 999 },
+        seriesId: seed.comic.seriesId,
+        volumeId: seed.comic.volumeId,
+        libraryFileId: seed.comic.fileId,
+        contentType: 'comic',
+      },
+    });
+    await expect
+      .poll(async () => {
+        const r = await page.request.get(`/api/reader/progress/${encodeURIComponent(key)}`);
+        return r.ok() ? ((await r.json()) as { finished: boolean }).finished : false;
+      })
+      .toBe(true);
+
     await page.goto(`/read/f/${seed.comic.fileId}`);
     // Restart toast appears, and we're back on page 1.
     await expect(page.getByText(/Finished last time/i)).toBeVisible();
     await expect(page.getByAltText('Page 1')).toBeVisible();
 
+    // The dashboard's Continue-reading rail lists IN-PROGRESS items only
+    // (!finished && 0 < position < 0.999) — merely reopening keeps the row
+    // finished. Turn a page so fresh progress is written, and wait for the
+    // write to land before visiting the dashboard.
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByAltText('Page 2')).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          const r = await page.request.get(`/api/reader/progress/${encodeURIComponent(key)}`);
+          if (!r.ok()) return 'error';
+          const b = (await r.json()) as { position: number; finished: boolean };
+          return !b.finished && b.position > 0 ? 'in-progress' : 'stale';
+        },
+        { timeout: 10_000 },
+      )
+      .toBe('in-progress');
+
     // The continue-reading rail moved to the dashboard (Task 7 slimmed the
-    // library page). It should surface this just-reopened item; each card links
+    // library page). It surfaces the now-in-progress item; each card links
     // straight into the reader at the saved position.
     await page.goto('/dashboard');
     const rail = page.getByText('Continue reading', { exact: false });

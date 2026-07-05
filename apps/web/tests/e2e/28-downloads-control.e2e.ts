@@ -36,18 +36,18 @@ test.describe('Downloads control endpoints', () => {
     expect(body.downloads.length).toBe(0);
   });
 
-  test('DELETE /api/downloads/[hash] returns 502 when qBt is not configured', async ({
+  test('DELETE /api/downloads/[hash] succeeds even when qBt is not configured', async ({
     page,
   }) => {
     await signIn(page, ADMIN.username, ADMIN.password);
 
-    // With no qBittorrent configured the route correctly returns 502, proving
-    // the DELETE handler is wired at the expected path.
+    // Cancel is best-effort and idempotent: with no qBittorrent configured (and
+    // no matching row) the route still clears state and returns ok — a 404
+    // here would mean the route is missing.
     const res = await page.request.delete('/api/downloads/deadbeefdeadbeef');
-    // 502 = qBt not configured (not 404, which would mean the route is missing).
-    expect(res.status()).toBe(502);
-    const body = (await res.json()) as { message: string };
-    expect(body.message).toMatch(/qBittorrent not configured/i);
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as { ok: boolean };
+    expect(body.ok).toBe(true);
   });
 
   test('POST /api/downloads/[hash]/pause returns 502 when qBt is not configured', async ({

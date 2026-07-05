@@ -25,6 +25,7 @@ test.describe('Matcher settings', () => {
       seederMultiplier: 5,
       trustedBonus: 10,
       remakePenalty: -15,
+      minSeeders: 1,
     });
     expect(body.adultFilter).toEqual({
       enabled: true,

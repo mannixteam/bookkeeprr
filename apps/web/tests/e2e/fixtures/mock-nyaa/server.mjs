@@ -6,7 +6,13 @@
 //                                     asks for the canonical series anyway).
 //   GET /download/release.torrent   → a real .torrent file with a WebSeed
 //                                     URL pointing at /dl/payload.bin.
-//   GET /dl/payload.bin             → the WebSeed payload (16 KiB of 0xAA).
+//   GET /dl/payload.bin             → the WebSeed payload: a VALID .cbz (a
+//                                     stored ZIP with one PNG page). The
+//                                     importer's content health-check opens
+//                                     the file with the comics prober and
+//                                     rejects provably-bad archives, so a
+//                                     garbage payload would blacklist the
+//                                     release and slice 3 could never import.
 //   GET /tracker?...                → minimal HTTP tracker: empty peers.
 //                                     qBit falls back to the WebSeed.
 //   GET /healthz                    → 200 OK for compose healthcheck.
@@ -19,10 +25,59 @@ import crypto from 'node:crypto';
 
 const PORT = Number(process.env.PORT ?? 8080);
 const RELEASE_TITLE = 'Mock Test Series v01 (2024) (Digital) (mock).cbz';
-const PAYLOAD_LEN = 16 * 1024;
 const PIECE_LENGTH = 16 * 1024;
 
-const PAYLOAD = Buffer.alloc(PAYLOAD_LEN, 0xaa);
+// --- minimal valid CBZ (stored ZIP, one PNG entry) -------------------------
+
+// 1x1 transparent PNG.
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+const CRC_TABLE = new Uint32Array(256).map((_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+function crc32(buf) {
+  let c = 0xffffffff;
+  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** Build a stored (method 0) single-entry ZIP — enough for 7z/zip probers. */
+function buildCbz(entryName, data) {
+  const name = Buffer.from(entryName, 'utf-8');
+  const crc = crc32(data);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0); // local file header signature
+  local.writeUInt16LE(20, 4); // version needed
+  local.writeUInt32LE(crc, 14);
+  local.writeUInt32LE(data.length, 18); // compressed size (stored)
+  local.writeUInt32LE(data.length, 22); // uncompressed size
+  local.writeUInt16LE(name.length, 26);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0); // central directory signature
+  central.writeUInt16LE(20, 4); // version made by
+  central.writeUInt16LE(20, 6); // version needed
+  central.writeUInt32LE(crc, 16);
+  central.writeUInt32LE(data.length, 20);
+  central.writeUInt32LE(data.length, 24);
+  central.writeUInt16LE(name.length, 28);
+  central.writeUInt32LE(0, 42); // local header offset
+  const cdOffset = local.length + name.length + data.length;
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0); // end-of-central-directory signature
+  eocd.writeUInt16LE(1, 8); // entries on this disk
+  eocd.writeUInt16LE(1, 10); // total entries
+  eocd.writeUInt32LE(central.length + name.length, 12); // CD size
+  eocd.writeUInt32LE(cdOffset, 16); // CD offset
+  return Buffer.concat([local, name, data, central, name, eocd]);
+}
+
+const PAYLOAD = buildCbz('page-001.png', PNG);
+const PAYLOAD_LEN = PAYLOAD.length;
 const PIECES = crypto.createHash('sha1').update(PAYLOAD).digest(); // single 20-byte SHA-1
 
 // --- minimal bencoder ----------------------------------------------------
@@ -82,7 +137,7 @@ function rss(host) {
       <nyaa:downloads>100</nyaa:downloads>
       <nyaa:infoHash>${infoHashHex}</nyaa:infoHash>
       <nyaa:categoryId>3_1</nyaa:categoryId>
-      <nyaa:size>16 KiB</nyaa:size>
+      <nyaa:size>${Math.max(1, Math.round(PAYLOAD_LEN / 1024))} KiB</nyaa:size>
       <nyaa:trusted>No</nyaa:trusted>
       <nyaa:remake>No</nyaa:remake>
     </item>

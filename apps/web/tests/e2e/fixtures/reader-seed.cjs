@@ -11,11 +11,14 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 const MEDIA_ROOT = process.env.BOOKKEEPRR_MEDIA_ROOT || '/media';
-// The server resolves its DB from BOOKKEEPRR_DB_PATH, else `./bookkeeprr.dev.db`
-// relative to the WORKDIR (/app/apps/web). The e2e image ships no DB_PATH env,
-// so the live DB is the dev db under the app workdir — target that, since this
-// script is exec'd with cwd = /app/apps/web.
-const DB_PATH = process.env.BOOKKEEPRR_DB_PATH || path.resolve('bookkeeprr.dev.db');
+// Mirror the server's DB resolution (src/server/db/client.ts): explicit
+// BOOKKEEPRR_DB_PATH, else <BOOKKEEPRR_CONFIG_DIR>/bookkeeprr.db (the deployed
+// container sets CONFIG_DIR=/config), else the local-dev ./bookkeeprr.dev.db.
+const DB_PATH =
+  process.env.BOOKKEEPRR_DB_PATH ||
+  (process.env.BOOKKEEPRR_CONFIG_DIR
+    ? path.join(process.env.BOOKKEEPRR_CONFIG_DIR, 'bookkeeprr.db')
+    : path.resolve('bookkeeprr.dev.db'));
 
 // better-sqlite3 ships in the container under apps/web/node_modules.
 const Database = require('better-sqlite3');

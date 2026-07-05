@@ -62,12 +62,16 @@ test.beforeAll(async ({ browser }) => {
     {
       contentType: 'ebook',
       flow: 'single',
+      // The ebook create branch requires an OpenLibrary id; hydrate for these
+      // synthetic olids fails harmlessly offline (the test asserts UI only).
+      olid: 'OL-e2e-fellowship',
       title: 'The Fellowship of the Ring',
       qualityProfileId,
     },
     {
       contentType: 'ebook',
       flow: 'single',
+      olid: 'OL-e2e-twotowers',
       title: 'The Two Towers',
       qualityProfileId,
     },
@@ -143,10 +147,12 @@ test.describe('Book series', () => {
     // The page title shows the series name.
     await expect(page.getByRole('heading', { name: /The Lord of the Rings/i })).toBeVisible();
 
-    // Both member titles are shown as owned-book cards (linked to their series
-    // detail pages via data-testid="owned-book-<seriesId>").
-    await expect(page.getByTestId(`owned-book-${memberSeriesId1}`)).toBeVisible();
-    await expect(page.getByTestId(`owned-book-${memberSeriesId2}`)).toBeVisible();
+    // "Owned" on this page means the member series has ≥1 library file — these
+    // fileless members render as missing-book cards with an Add CTA instead.
+    // Both member titles appear in the book list either way.
+    await expect(page.getByText('The Fellowship of the Ring').first()).toBeVisible();
+    await expect(page.getByText('The Two Towers').first()).toBeVisible();
+    await expect(page.getByTestId('missing-book-add').first()).toBeVisible();
   });
 
   test('member title detail shows part-of-series card that navigates to the book series', async ({

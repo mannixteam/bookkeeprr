@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.1.1 - 2026-07-05
+
+### Fixed
+
+- The published OpenAPI spec now reports the correct release version; the release process regenerates it alongside each version bump, so image builds no longer fail their spec-freshness check
+- GitHub CI no longer runs duplicate workflows for every release (the push-triggered runs merely repeated the release-triggered ones)
+
+### Changed
+
+- Test-suite reliability overhaul: the web end-to-end suite was restored to fully running order (it had been silently skipped by CI since the monorepo restructure) and its fixtures brought up to date; mobile test runs are now robust on cold CI runners; iOS device-test jobs gained watchdogs so a wedged simulator driver retries instead of hanging
+
 ## v1.1.0 - 2026-07-04
 
 ### Added

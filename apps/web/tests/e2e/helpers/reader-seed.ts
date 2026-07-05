@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,9 +44,20 @@ function containerId(): string {
   return id;
 }
 
-/** Copy a host file into the running container's filesystem. */
+/**
+ * Copy a host file into the running container's filesystem.
+ *
+ * NOT `docker cp`: the app container's /media and /config are tmpfs mounts,
+ * and docker cp writes through the graph driver into the path the tmpfs
+ * SHADOWS — the file lands invisibly under the mount and the app never sees
+ * it (podman cp writes via the live mount namespace, which is why this only
+ * broke on the dind CI). `exec cat` runs inside the mount namespace, so the
+ * bytes land on the actual tmpfs.
+ */
 function cpInto(cid: string, hostPath: string, containerPath: string): void {
-  docker(['cp', hostPath, `${cid}:${containerPath}`]);
+  execFileSync('docker', ['exec', '-i', cid, 'sh', '-c', `cat > '${containerPath}'`], {
+    input: readFileSync(hostPath),
+  });
 }
 
 /**

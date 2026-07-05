@@ -1,6 +1,7 @@
 // @testing-library/react-native v12.4+ ships the jest-native matchers built-in
 // and auto-registers them on import, so the deprecated @testing-library/jest-native
 // package (and its extend-expect import) is no longer needed.
+import { configure } from '@testing-library/react-native';
 import { server } from './mocks/server';
 import { useConnectivity } from '@/state/connectivityStore';
 
@@ -9,7 +10,15 @@ import { useConnectivity } from '@/state/connectivityStore';
 // and the 5s jest default also collides with RNTL's 5s waitFor default. Set it
 // here (setupFilesAfterEnv runs for every project) — a project-level
 // `testTimeout` in jest.config is ignored by Jest when using `projects`.
-jest.setTimeout(20_000);
+jest.setTimeout(30_000);
+
+// On a COLD Jest transform cache (every CI run) the first render of a heavy
+// screen lazily transforms dozens of modules inside the waitFor window, blowing
+// RNTL's 1s default. The timed-out waitFor's last poll then runs after
+// auto-cleanup and misreports "`render` function has not been called". A warm
+// local cache never hits this — keep the ceiling below jest.setTimeout so a
+// genuine element-not-found still surfaces as itself.
+configure({ asyncUtilTimeout: 15_000 });
 
 jest.mock('@/lib/secure-storage', () => ({
   getItemAsync: jest.fn(async () => null),

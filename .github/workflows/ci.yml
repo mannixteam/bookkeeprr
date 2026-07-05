@@ -1,8 +1,9 @@
 name: CI
 
+# No push trigger: public main only ever receives the squashed release commit,
+# and the release:published run already executes the same tests before the
+# image builds - a push trigger would just duplicate every run.
 on:
-  push:
-    branches: [main]
   pull_request:
   release:
     types: [published]
