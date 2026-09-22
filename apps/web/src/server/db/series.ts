@@ -1,6 +1,14 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, like, sql } from 'drizzle-orm';
 import { getDb } from './client';
-import { downloads, libraryFiles, releases, series, volumes, type SeriesRow } from './schema';
+import {
+  chapters,
+  downloads,
+  libraryFiles,
+  releases,
+  series,
+  volumes,
+  type SeriesRow,
+} from './schema';
 import { withWriteLock } from './write-lock';
 import { purgeCachedImages } from '@/server/images/cache';
 import { shouldAutoDisableFutureMonitoring } from '@/server/series/auto-monitoring';
@@ -301,33 +309,80 @@ export async function getSeriesDiskSizes(): Promise<Map<number, number>> {
 export async function getAcquisitionCounts(): Promise<Map<number, AcquisitionCounts>> {
   const db = getDb();
 
-  const [seriesRows, volumeRows, ownedRows] = await Promise.all([
-    db.select({ id: series.id, totalVolumes: series.totalVolumes }).from(series),
-    db
-      .select({ seriesId: volumes.seriesId, total: sql<number>`count(*)` })
-      .from(volumes)
-      .groupBy(volumes.seriesId),
-    db
-      .select({
-        seriesId: volumes.seriesId,
-        owned: sql<number>`count(distinct ${volumes.id})`,
-      })
-      .from(libraryFiles)
-      .innerJoin(volumes, eq(libraryFiles.volumeId, volumes.id))
-      .groupBy(volumes.seriesId),
-  ]);
+  const [seriesRows, volumeRows, chapterRows, ownedVolumeRows, ownedChapterRows] =
+    await Promise.all([
+      db
+        .select({
+          id: series.id,
+          granularity: series.granularity,
+          totalVolumes: series.totalVolumes,
+          totalChapters: series.totalChapters,
+        })
+        .from(series),
+      db
+        .select({ seriesId: volumes.seriesId, total: sql<number>`count(*)` })
+        .from(volumes)
+        .groupBy(volumes.seriesId),
+      db
+        .select({ seriesId: chapters.seriesId, total: sql<number>`count(*)` })
+        .from(chapters)
+        .groupBy(chapters.seriesId),
+      db
+        .select({
+          seriesId: volumes.seriesId,
+          owned: sql<number>`count(distinct ${volumes.id})`,
+        })
+        .from(libraryFiles)
+        .innerJoin(volumes, eq(libraryFiles.volumeId, volumes.id))
+        .groupBy(volumes.seriesId),
+      db
+        .select({
+          seriesId: chapters.seriesId,
+          owned: sql<number>`count(distinct ${chapters.id})`,
+        })
+        .from(libraryFiles)
+        .innerJoin(chapters, eq(libraryFiles.chapterId, chapters.id))
+        .groupBy(chapters.seriesId),
+    ]);
 
   const volumeTotals = new Map<number, number>();
   for (const r of volumeRows) volumeTotals.set(r.seriesId, Number(r.total));
 
-  const ownedCounts = new Map<number, number>();
-  for (const r of ownedRows) ownedCounts.set(r.seriesId, Number(r.owned));
+  const chapterTotals = new Map<number, number>();
+  for (const r of chapterRows) chapterTotals.set(r.seriesId, Number(r.total));
+
+  const ownedVolumeCounts = new Map<number, number>();
+  for (const r of ownedVolumeRows) ownedVolumeCounts.set(r.seriesId, Number(r.owned));
+
+  const ownedChapterCounts = new Map<number, number>();
+  for (const r of ownedChapterRows) ownedChapterCounts.set(r.seriesId, Number(r.owned));
 
   const out = new Map<number, AcquisitionCounts>();
+
   for (const s of seriesRows) {
-    const total = s.totalVolumes && s.totalVolumes > 0 ? s.totalVolumes : (volumeTotals.get(s.id) ?? 0);
-    out.set(s.id, { owned: ownedCounts.get(s.id) ?? 0, total });
+    if (s.granularity === 'chapter') {
+      const total =
+        s.totalChapters && s.totalChapters > 0
+          ? s.totalChapters
+          : (chapterTotals.get(s.id) ?? 0);
+
+      out.set(s.id, {
+        owned: ownedChapterCounts.get(s.id) ?? 0,
+        total,
+      });
+    } else {
+      const total =
+        s.totalVolumes && s.totalVolumes > 0
+          ? s.totalVolumes
+          : (volumeTotals.get(s.id) ?? 0);
+
+      out.set(s.id, {
+        owned: ownedVolumeCounts.get(s.id) ?? 0,
+        total,
+      });
+    }
   }
+
   return out;
 }
 
