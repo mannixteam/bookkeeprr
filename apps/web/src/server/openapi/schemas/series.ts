@@ -394,7 +394,10 @@ export const MangaSearchHit = z.object({
 
 /** ComicVine volume hit (src/server/integrations/comicvine/schemas.ts). */
 export const ComicSearchHit = z.object({
-  comicvineId: z.number().int(),
+  comicvineId: z.number().int().optional(),
+  bnfArk: z.string().nullable().optional(),
+  frenchIsbn: z.string().nullable().optional(),
+  contentType: z.enum(['comic', 'manga']).optional(),
   name: z.string(),
   publisher: z.string().nullable(),
   startYear: z.number().int().nullable(),

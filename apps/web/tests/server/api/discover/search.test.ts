@@ -1,3 +1,4 @@
+import * as frenchCatalog from '@/server/integrations/french-catalog/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -57,6 +58,7 @@ beforeEach(async () => {
   const migrationsFolder = path.resolve(__dirname, '../../../../drizzle');
   migrate(db, { migrationsFolder });
   vi.restoreAllMocks();
+  vi.spyOn(frenchCatalog, 'searchFrenchCatalog').mockResolvedValue([]);
   __resetComicVineForTests();
   __resetOpenLibraryForTests();
   // Default OpenLibrary to empty: it backs ebook search AND the novel-cover
@@ -920,3 +922,4 @@ describe('GET /api/discover/search — provider gating', () => {
     expect(nuSpy).not.toHaveBeenCalled();
   });
 });
+

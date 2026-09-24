@@ -37,7 +37,7 @@ jobs:
       - name: Live French catalog smoke
         continue-on-error: true
         working-directory: apps/web
-        run: pnpm exec tsx scripts/french-catalog-live.ts > french-catalog-live.json
+        run: pnpm exec tsx scripts/french-catalog-live.ts | tee french-catalog-live.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

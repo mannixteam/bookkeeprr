@@ -733,6 +733,20 @@
                         "description": "Library group to file the new series under. 422 when the group does not exist.",
                         "type": "integer",
                         "exclusiveMinimum": 0
+                      },
+                      "bnfArk": {
+                        "type": "string",
+                        "pattern": "^ark:\\/12148\\/cb[0-9a-z]+$"
+                      },
+                      "frenchIsbn": {
+                        "type": "string",
+                        "pattern": "^97[89]\\d{10}$"
+                      },
+                      "publisher": {
+                        "type": "string"
+                      },
+                      "startYear": {
+                        "type": "integer"
                       }
                     },
                     "required": [
@@ -748,7 +762,8 @@
                         "const": "comic"
                       },
                       "comicvineId": {
-                        "type": "integer"
+                        "type": "integer",
+                        "exclusiveMinimum": 0
                       },
                       "publisher": {
                         "type": "string"
@@ -810,11 +825,18 @@
                         "description": "Library group to file the new series under. 422 when the group does not exist.",
                         "type": "integer",
                         "exclusiveMinimum": 0
+                      },
+                      "bnfArk": {
+                        "type": "string",
+                        "pattern": "^ark:\\/12148\\/cb[0-9a-z]+$"
+                      },
+                      "frenchIsbn": {
+                        "type": "string",
+                        "pattern": "^97[89]\\d{10}$"
                       }
                     },
                     "required": [
                       "contentType",
-                      "comicvineId",
                       "titleEnglish",
                       "qualityProfileId"
                     ]
@@ -1896,10 +1918,36 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "bnfArk": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "frenchIsbn": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "contentType": {
+                                "type": "string",
+                                "enum": [
+                                  "comic",
+                                  "manga"
+                                ]
                               }
                             },
                             "required": [
-                              "comicvineId",
                               "name",
                               "publisher",
                               "startYear",

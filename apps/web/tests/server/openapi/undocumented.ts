@@ -13,6 +13,7 @@ export const UNDOCUMENTED: UndocumentedEntry[] = [
     path: '/api/mobile/**',
     reason: 'mobile BFF — app-internal contract, not part of the public spec',
   },
+  { path: '/api/french-cover', reason: 'validated binary cover proxy for the bundled UI — internal image endpoint' },
   // Image proxy/cache used by the bundled web UI. Not a public API surface.
   {
     path: '/api/img/**',
@@ -149,3 +150,4 @@ export const UNDOCUMENTED: UndocumentedEntry[] = [
       'in-app update checker for the bundled UI (GitHub releases proxy, rate-limited check trigger, per-user changelog-seen marker) — admin UI plumbing, not part of the curated public surface',
   },
 ];
+

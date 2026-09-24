@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import * as frenchCatalog from '@/server/integrations/french-catalog/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { seedDb, type SeedHandle } from '../helpers/seed';
@@ -19,10 +20,12 @@ const F = (n: string) => readFileSync(join(process.cwd(), 'tests/fixtures/comicv
 let h: SeedHandle;
 
 beforeEach(async () => {
+  vi.restoreAllMocks();
+  vi.spyOn(frenchCatalog, 'searchFrenchCatalog').mockResolvedValue([]);
   h = await seedDb();
   __resetComicVineForTests();
 });
-afterEach(() => h.cleanup());
+afterEach(() => { vi.restoreAllMocks(); h.cleanup(); });
 
 function req(qs: string): Request {
   return new Request(`http://t/api/series/search?${qs}`);
@@ -82,3 +85,4 @@ describe('SeriesSearchQuery contentType enum', () => {
     expect(ContentTypeEnum.options).toEqual([...CONTENT_TYPES]);
   });
 });
+

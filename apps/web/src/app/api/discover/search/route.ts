@@ -463,7 +463,7 @@ async function searchSingleType(
 
   if (contentType === 'manga') {
     const [fr, original] = await Promise.allSettled([searchBnfComics(q), searchManga(q, providers)]);
-    return { results: dedupeResults([...(fr.status === 'fulfilled' ? fr.value.filter(r => r.contentType === 'manga') : []), ...(original.status === 'fulfilled' ? original.value : [])]), ...(fr.status === 'rejected' ? { error: 'Catalogue français indisponible' } : {}) };
+    return { results: dedupeResults([...(fr.status === 'fulfilled' ? fr.value.filter(r => r.contentType === 'manga') : []), ...(original.status === 'fulfilled' ? original.value : [])]), ...(original.status === 'rejected' ? { error: original.reason instanceof Error ? original.reason.message : String(original.reason) } : fr.status === 'rejected' ? { error: 'Catalogue français indisponible' } : {}) };
   }
 
   // Ebook search is dual-source (OL + GB) — it never throws, returns its own
