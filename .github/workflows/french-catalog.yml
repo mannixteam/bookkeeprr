@@ -57,6 +57,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
+      - name: Validate isolated Compose file
+        run: docker compose -f compose.fr-test.yaml config --quiet
       - name: Build isolated test image
         run: docker build -f apps/web/Dockerfile --build-arg BOOKKEEPRR_COMMIT=${{ github.sha }} -t bookkeeprr-fr:test .
       - name: Boot fresh configuration
@@ -68,6 +70,18 @@ jobs:
           done
           docker logs bookkeeprr-fr-smoke
           exit 1
+      - name: Verify image decoder in production container
+        run: |
+          docker exec -i bookkeeprr-fr-smoke node <<'JS'
+          const assert = require('node:assert/strict');
+          const sharp = require(require.resolve('sharp', { paths: [require.resolve('next/package.json')] }));
+          (async () => {
+            const png = await sharp({ create: { width: 120, height: 180, channels: 3, background: '#ac8040' } }).png().toBuffer();
+            const webp = await sharp(png, { limitInputPixels: 20000000, failOn: 'warning' }).webp().toBuffer();
+            assert.equal((await sharp(webp).metadata()).format, 'webp');
+            console.log('Production image decoder OK');
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          JS
       - name: Container logs
         if: always()
         run: docker logs bookkeeprr-fr-smoke || true
