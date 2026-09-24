@@ -1,3 +1,4 @@
+import { GET as discover } from '@/app/api/discover/search/route';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { seedDb, type SeedHandle } from './helpers/seed';
 import { insertSeries, getSeries } from '@/server/db/series';
@@ -30,4 +31,14 @@ it('hydrates recent ISBN editions idempotently without shrinking or deleting loc
   expect(volumes.map(v => v.number).sort()).toEqual([1, 2]);
   expect(JSON.parse(volumes.find(v => v.number === 1)!.metadataJson!)).toMatchObject({ custom: 'keep', source: 'googlebooks', ean: '9782723488525' });
   expect((await getSeries(id))?.totalVolumes).toBe(8);
+});
+
+it('keeps another publisher available in discovery after adding the first edition', async () => {
+  await insertSeries(input());
+  const hit = { bnfArk: null, frenchIsbn: '9782723488525', name: 'Série française', publisher: 'Delcourt', startYear: 2026, volumeCount: 1, coverUrl: null, description: null, contentType: 'comic' as const, volumes: [] };
+  vi.spyOn(catalog, 'searchFrenchCatalog').mockResolvedValue([hit, { ...hit, publisher: 'Autre éditeur', frenchIsbn: '9782205084338' }]);
+  const response = await discover(new Request('http://t/api/discover/search?contentType=comic&q=Serie'));
+  const body = await response.json();
+  expect(body.results.find((r: { author: string }) => r.author === 'Delcourt').inLib).toBe(true);
+  expect(body.results.find((r: { author: string }) => r.author === 'Autre éditeur').inLib).toBe(false);
 });

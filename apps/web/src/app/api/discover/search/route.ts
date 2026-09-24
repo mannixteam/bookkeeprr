@@ -1,3 +1,6 @@
+import { listSeries } from '@/server/db/series';
+import { extractBnfArk, extractFrenchIsbn } from '@/lib/bnf-marker';
+import { normalized } from '@/server/integrations/french-catalog/model';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { CONTENT_TYPES, type ContentType } from '@/server/content-type';
@@ -417,9 +420,16 @@ async function searchAudio(q: string): Promise<DiscoverResult[]> {
 async function enrichWithInLib(results: DiscoverResult[]): Promise<DiscoverResult[]> {
   if (results.length === 0) return results;
   const inLibSet = await findInLib(results.map((r) => ({ title: r.title, contentType: r.contentType })));
+  const frenchRows = results.some(r => r.sources?.bnf || r.sources?.frenchIsbn)
+    ? (await listSeries()).filter(row => extractBnfArk(row.extraSearchTermsJson) || extractFrenchIsbn(row.extraSearchTermsJson)) : [];
   return results.map((r) => ({
     ...r,
-    inLib: inLibSet.has(`${r.contentType}::${r.title.toLowerCase().trim()}`),
+    inLib: r.sources?.bnf || r.sources?.frenchIsbn ? frenchRows.some(row =>
+      row.contentType === r.contentType && (
+        (r.sources?.bnf && r.sources.bnf === extractBnfArk(row.extraSearchTermsJson)) ||
+        (r.sources?.frenchIsbn && r.sources.frenchIsbn === extractFrenchIsbn(row.extraSearchTermsJson)) ||
+        (r.author && row.publisher && normalized(r.author) === normalized(row.publisher) && normalized(r.title) === normalized(row.titleEnglish))
+      )) : inLibSet.has(`${r.contentType}::${r.title.toLowerCase().trim()}`),
   }));
 }
 
