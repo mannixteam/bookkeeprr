@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { extractBookIdentifiers } from './identifiers';
 
 const SRU_BASE = 'https://catalogue.bnf.fr/api/SRU';
 const COVER_BASE = 'https://openapi.bnf.fr/couverture/image/image/recupererImage';
@@ -149,26 +150,6 @@ function extractArk(blob: string): string | null {
   return blob.match(/ark:\/12148\/cb[0-9a-z]+/i)?.[0] ?? null;
 }
 
-function compactDigits(value: string): string {
-  return value.replace(/[^0-9Xx]/g, '');
-}
-
-function identifiers(values: string[]): { isbn: string | null; ean: string | null } {
-  let isbn: string | null = null;
-  let ean: string | null = null;
-  for (const raw of values) {
-    const candidates = raw.match(/[0-9Xx][0-9Xx\s-]{8,20}[0-9Xx]/g) ?? [];
-    for (const candidate of candidates) {
-      const compact = compactDigits(candidate);
-      if (!ean && /^97[89]\d{10}$/.test(compact)) ean = compact;
-      if (!isbn && (/^\d{9}[\dXx]$/.test(compact) || /^97[89]\d{10}$/.test(compact))) {
-        isbn = compact;
-      }
-    }
-  }
-  return { isbn, ean };
-}
-
 function firstYear(values: string[]): number | null {
   for (const value of values) {
     const match = value.match(/\b(19\d{2}|20\d{2})\b/);
@@ -244,10 +225,11 @@ function parseRecord(record: unknown): ParsedRecord | null {
 
   const title = [...titles].map(cleanTitle).filter(Boolean).sort((a, b) => a.length - b.length)[0]!;
   if (!title) return null;
-  const context = [...titles, ...descriptions, ...relations].join(' | ');
+  // Descriptions may mention other volumes; only titles/relations identify this item.
+  const context = titles.join(' | ');
   const tv = titleAndVolume(title, context);
   const publisher = canonicalPublisher(publishers[0] ?? null);
-  const id = identifiers(ids);
+  const id = extractBookIdentifiers(ids);
   const description = descriptions[0] ?? null;
   const language = langs[0] ?? null;
   const comicHaystack = norm([...subjects, ...descriptions, ...types, publisher ?? ''].join(' '));
@@ -313,7 +295,7 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
 }
 
 function coverUrl(record: ParsedRecord): string {
-  const isbn = record.isbn ?? record.ean;
+  const isbn = record.ean;
   if (isbn) {
     return `https://bdi.dlpdomain.com/album/${isbn}/couv/M385x862/cover.jpg`;
   }
@@ -407,7 +389,7 @@ function finalizeGroup(records: ParsedRecord[], query: string): BnfComicSeriesHi
     .filter((v): v is number => v != null)
     .sort((a, b) => a - b)[0] ?? null;
   const volumeCount = Math.max(volumes.length, ...volumes.map((v) => v.number));
-  const attribution = `Source des métadonnées et de la couverture : Bibliothèque nationale de France (consultée le ${new Date().toISOString().slice(0, 10)}).`;
+  const attribution = `Source des métadonnées : Bibliothèque nationale de France (consultée le ${new Date().toISOString().slice(0, 10)}).`;
   const description = canonical.description ? `${canonical.description}\n\n${attribution}` : attribution;
   return {
     bnfArk: canonical.ark,
@@ -424,6 +406,7 @@ function finalizeGroup(records: ParsedRecord[], query: string): BnfComicSeriesHi
 function groupRecords(records: ParsedRecord[], query: string): BnfComicSeriesHit[] {
   const groups = new Map<string, ParsedRecord[]>();
   for (const record of records) {
+    if (record.language && !/^(fre|fr|fra)\b|francais/i.test(norm(record.language))) continue;
     if (!record.comicLike && !publisherLooksComic(record.publisher)) continue;
     const title = groupTitle(record, query);
     if (!norm(title)) continue;
@@ -469,12 +452,14 @@ export async function getFrenchComicSeries(
 ): Promise<BnfComicSeriesHit> {
   if (!/^ark:\/12148\/cb[0-9a-z]+$/i.test(seedArk)) throw new BnfError('invalid BnF ARK');
   const seedRecords = await sru(`bib.persistentid any "${escapeCql(seedArk)}"`, 5);
-  const seed = seedRecords.find((r) => r.ark.toLowerCase() === seedArk.toLowerCase()) ?? seedRecords[0];
+  const seed = seedRecords.find((r) => r.ark.toLowerCase() === seedArk.toLowerCase());
   if (!seed) throw new BnfError(`BnF record not found: ${seedArk}`, 404);
 
   const query = preferredTitle?.trim() || seed.baseTitle;
   const related = await sru(`(bib.title all "${escapeCql(query)}") and (bib.recordtype any "mon")`);
   const all = [...new Map([seed, ...related].map((r) => [r.ark, r])).values()];
   const hits = groupRecords(all, query);
-  return hits.find((hit) => hit.volumes.some((v) => v.ark.toLowerCase() === seedArk.toLowerCase())) ?? hits[0] ?? finalizeGroup([seed], query);
+  // Reissues can replace the seed in chooseRecords. Match its group, never an unrelated first hit.
+  return hits.find((hit) => norm(hit.name) === norm(groupTitle(seed, query)) && norm(hit.publisher) === norm(seed.publisher)) ?? finalizeGroup([seed], query);
 }
+

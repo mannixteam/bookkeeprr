@@ -52,7 +52,10 @@ export function dedupeResults(rows: DiscoverResult[]): DiscoverResult[] {
   const out: DiscoverResult[] = [];
 
   for (const row of rows) {
-    const key = `${row.contentType}::${normalizeTitle(row.title)}`;
+    // French editions and original-language ComicVine runs are not interchangeable.
+    // Keep BnF publishers separate: identical titles alone do not identify an edition.
+    const edition = row.source === 'bnf' ? `::bnf::${normalizeTitle(row.author ?? '')}` : '';
+    const key = `${row.contentType}::${normalizeTitle(row.title)}${edition}`;
     const existingIdx = indexByKey.get(key);
     if (existingIdx === undefined) {
       indexByKey.set(key, out.length);
@@ -70,3 +73,4 @@ export function dedupeResults(rows: DiscoverResult[]): DiscoverResult[] {
 
   return out;
 }
+

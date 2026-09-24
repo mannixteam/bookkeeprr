@@ -251,7 +251,6 @@ async function searchComicVine(q: string): Promise<DiscoverResult[]> {
 
 async function searchBnfComics(q: string): Promise<DiscoverResult[]> {
   const hits = await searchFrenchComicSeries(q);
-  console.log('[BNF-DEBUG]', JSON.stringify(hits.map(h => ({ title: h.name, ark: h.bnfArk, isbn: h.volumes.map(v => v.isbn).filter(Boolean), cover: h.coverUrl }))));
   return hits.map((h) => ({
     contentType: 'comic' as const,
     sourceId: h.bnfArk,
@@ -462,25 +461,11 @@ async function searchSingleType(
     return { results };
   }
   if (contentType === 'comic') {
-    const [comicVineOut, bnfOut] = await Promise.allSettled([
-      searchComics(q, providers.comicvine),
-      searchBnfComics(q),
-    ]);
-
-    const results = [
-      ...(comicVineOut.status === 'fulfilled' ? comicVineOut.value : []),
-      ...(bnfOut.status === 'fulfilled' ? bnfOut.value : []),
-    ];
-
-    const errors = [
-      comicVineOut.status === 'rejected' ? (comicVineOut.reason instanceof Error ? comicVineOut.reason.message : String(comicVineOut.reason)) : null,
-      bnfOut.status === 'rejected' ? (bnfOut.reason instanceof Error ? bnfOut.reason.message : String(bnfOut.reason)) : null,
-    ].filter((value): value is string => Boolean(value));
-
-    return {
-      results: dedupeResults(results),
-      ...(results.length === 0 && errors.length > 0 ? { error: errors.join('; ') } : {}),
-    };
+    try {
+      return { results: await searchComics(q, providers.comicvine) };
+    } catch (err) {
+      return { results: [], error: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   // Ebook search is dual-source (OL + GB) — it never throws, returns its own
@@ -627,3 +612,4 @@ export async function GET(req: Request): Promise<NextResponse> {
     ...(Object.keys(errors).length > 0 ? { errors } : {}),
   });
 }
+

@@ -1,0 +1,21 @@
+name: French catalog regression
+on:
+  push:
+    branches: [feature/french-catalog-reliability]
+  pull_request:
+    paths:
+      - 'apps/web/src/server/integrations/bnf/**'
+      - 'apps/web/src/server/discover/merge.ts'
+      - 'apps/web/tests/french-catalog.node.mjs'
+      - '.github/workflows/french-catalog.yml'
+permissions:
+  contents: read
+jobs:
+  identifiers-and-editions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node --experimental-strip-types --test apps/web/tests/french-catalog.node.mjs
