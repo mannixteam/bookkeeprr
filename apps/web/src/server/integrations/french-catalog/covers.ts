@@ -1,5 +1,4 @@
-import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import sharp from 'sharp';
 import { bookEan } from '../bnf/identifiers';
 
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -20,25 +19,9 @@ export function candidates(key: CoverKey): string[] {
   if (key.googleId && /^[\w-]{1,100}$/.test(key.googleId)) urls.push(`https://books.google.com/books/content?id=${key.googleId}&printsec=frontcover&img=1&zoom=1&source=gbs_api`);
   return urls;
 }
-type Decoder = (bytes: Uint8Array, options: { limitInputPixels: number; failOn: string }) => {
-  metadata(): Promise<{ width?: number; height?: number; pages?: number; format?: string }>;
-  rotate(): { resize(options: { width: number; height: number; fit: string; withoutEnlargement: boolean }): { webp(options: { quality: number }): { toBuffer(): Promise<Uint8Array> } } };
-};
-let decoder: Decoder | undefined;
-function getDecoder(): Decoder {
-  if (!decoder) {
-    // Next ships sharp as a production dependency. Resolve from Next's scope in pnpm.
-    const require = createRequire(join(process.cwd(), 'package.json'));
-    let location: string;
-    try { location = require.resolve('sharp', { paths: [require.resolve('next/package.json')] }); }
-    catch { location = require.resolve('sharp'); }
-    decoder = require(location) as Decoder;
-  }
-  return decoder;
-}
 export async function decodeCover(bytes: Uint8Array): Promise<Uint8Array> {
   if (bytes.length > MAX_BYTES) throw new Error('cover too large');
-  const image = getDecoder()(bytes, { limitInputPixels: MAX_PIXELS, failOn: 'warning' });
+  const image = sharp(bytes, { limitInputPixels: MAX_PIXELS, failOn: 'warning' });
   const meta = await image.metadata();
   if (!['jpeg','png','webp','avif','gif'].includes(meta.format ?? '') || !meta.width || !meta.height || meta.width < 80 || meta.height < 100 || (meta.pages ?? 1) > 1) throw new Error('invalid cover');
   // Decode the entire image, not merely its header; truncated files must fail.
