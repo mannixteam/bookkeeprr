@@ -243,6 +243,7 @@ function parseRecord(record: unknown): ParsedRecord | null {
   const ids = strings(dc.identifier);
 
   const title = [...titles].map(cleanTitle).filter(Boolean).sort((a, b) => a.length - b.length)[0]!;
+  if (!title) return null;
   const context = [...titles, ...descriptions, ...relations].join(' | ');
   const tv = titleAndVolume(title, context);
   const publisher = canonicalPublisher(publishers[0] ?? null);
