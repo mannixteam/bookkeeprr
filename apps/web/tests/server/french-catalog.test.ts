@@ -32,6 +32,11 @@ describe('French catalogue', () => {
     expect(new URL(fetcher.mock.calls[1]![0] as string).searchParams.get('startRecord')).toBe('2');
     expect(hits[0]?.volumes).toHaveLength(1);
   });
+  it('retains verified notices when a later SRU page fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(xml(record(), 2)).mockRejectedValueOnce(new Error('timeout')));
+    const hits = await searchFrenchComicSeries('Sacrifice');
+    expect(hits[0]?.volumes).toHaveLength(1);
+  });
   it('surfaces SRU diagnostics instead of pretending the search was empty', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<searchRetrieveResponse><diagnostics><diagnostic>bad CQL</diagnostic></diagnostics></searchRetrieveResponse>')));
     await expect(searchFrenchComicSeries('Sacrifice')).rejects.toThrow('diagnostic');

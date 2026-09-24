@@ -4,7 +4,11 @@ on:
     branches: [feature/french-catalog-reliability]
   pull_request:
     paths:
-      - 'apps/web/src/server/integrations/bnf/**'
+      - 'apps/web/src/**'
+      - 'apps/web/tests/**'
+      - 'apps/web/scripts/french-catalog-live.ts'
+      - 'apps/website/public/openapi.json'
+      - 'compose.fr-test.yaml'
       - 'apps/web/src/server/discover/merge.ts'
       - 'apps/web/tests/french-catalog.node.mjs'
       - '.github/workflows/french-catalog.yml'

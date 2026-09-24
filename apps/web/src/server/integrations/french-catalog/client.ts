@@ -48,7 +48,7 @@ function fromBnf(hit: BnfComicSeriesHit): FrenchSeries {
 }
 export async function searchFrenchCatalog(query: string, apiKey = ''): Promise<FrenchSeries[]> {
   const [bnf, google] = await Promise.allSettled([searchFrenchComicSeries(query), googleFrench(bookEan(query) ? `isbn:${bookEan(query)}` : query, apiKey)]);
-  if (bnf.status === 'rejected' && google.status === 'rejected') throw new Error('BnF et Google Books sont indisponibles. Réessayer plus tard.');
+  if (bnf.status === 'rejected' && google.status === 'rejected') throw new Error(`Catalogue français indisponible (BnF: ${bnf.reason instanceof Error ? bnf.reason.message : 'échec'} ; Google Books: ${google.reason instanceof Error ? google.reason.message : 'échec'}). Réessayer plus tard.`);
   return mergeFrenchSeries(bnf.status === 'fulfilled' ? bnf.value.map(fromBnf) : [], google.status === 'fulfilled' ? google.value : []);
 }
 export async function getFrenchCatalogSeries(seed: { ark?: string | null; isbn?: string | null; title?: string | null }, apiKey = ''): Promise<FrenchSeries> {
@@ -62,7 +62,7 @@ export async function getFrenchCatalogSeries(seed: { ark?: string | null; isbn?:
   const candidates = await googleFrench(`isbn:${ean}`, apiKey);
   const exact = candidates.find(s => s.volumes.some(v => v.ean === ean));
   if (!exact) throw new Error('Édition française introuvable : aucune modification de la bibliothèque');
-  const related = await searchFrenchCatalog(exact.name, apiKey);
+  const related = await searchFrenchCatalog(exact.name, apiKey).catch(() => []);
   const merged = mergeFrenchSeries(related, [exact]);
   return merged.find(s => normalized(s.name) === normalized(exact.name) && normalized(s.publisher) === normalized(exact.publisher)) ?? exact;
 }

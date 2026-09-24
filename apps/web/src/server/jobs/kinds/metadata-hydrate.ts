@@ -59,7 +59,11 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
       let added = 0;
       for (const volume of detail.volumes) {
         if (volume.number == null) continue; // Never attach files to an invented ordinal.
+        const row = byNumber.get(volume.number);
+        let prior: Record<string, unknown> = {};
+        try { const parsed = JSON.parse(row?.metadataJson ?? '{}'); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) prior = parsed; } catch { /* damaged legacy metadata */ }
         const metadataJson = JSON.stringify({
+          ...prior,
           source: volume.ark ? 'bnf' : 'googlebooks',
           googleBooksId: volume.googleId ?? null,
           bnfArk: volume.ark,
@@ -72,7 +76,6 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
           coverRetrievedAt: new Date().toISOString().slice(0, 10),
         });
         const releaseDate = volume.year ? new Date(`${volume.year}-01-01T00:00:00Z`) : null;
-        const row = byNumber.get(volume.number);
         if (row) {
           await updateVolume(row.id, { title: volume.title, metadataJson });
         } else {

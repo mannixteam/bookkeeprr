@@ -1,0 +1,26 @@
+name: bookkeeprr-fr-test
+services:
+  bookkeeprr:
+    image: bookkeeprr-fr-test:local
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        BOOKKEEPRR_COMMIT: ${BOOKKEEPRR_TEST_COMMIT:-local}
+    ports:
+      - "${BOOKKEEPRR_TEST_BIND:-127.0.0.1}:3004:3000"
+    volumes:
+      - french-test-config:/config
+      - french-test-media:/media
+    environment:
+      TZ: Europe/Paris
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:3000/api/health]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+volumes:
+  french-test-config:
+  french-test-media:

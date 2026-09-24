@@ -50,6 +50,15 @@ describe('GET /api/series/search — comic dispatch', () => {
     expect(body.results[0].publisher).toBe('DC Comics');
   });
 
+  it('returns French editions without a ComicVine key', async () => {
+    await comicVineApiKeySetting.set('');
+    vi.mocked(frenchCatalog.searchFrenchCatalog).mockResolvedValue([{ bnfArk: null, frenchIsbn: '9782723488525', name: 'Nouvelle BD', publisher: 'Delcourt', startYear: 2026, volumeCount: 1, coverUrl: null, description: null, contentType: 'comic', volumes: [] }]);
+    const res = await GET(req('contentType=comic&q=Nouvelle'));
+    expect(res.status).toBe(200);
+    await expectShape(SeriesSearchResponse, res, 'French edition');
+    expect((await res.json()).results[0].frenchIsbn).toBe('9782723488525');
+  });
+
   it('returns 503 when comic search without API key', async () => {
     await comicVineApiKeySetting.set('');
     const res = await GET(req('contentType=comic&q=Watchmen'));

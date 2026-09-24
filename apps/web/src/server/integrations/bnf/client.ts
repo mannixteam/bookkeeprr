@@ -277,6 +277,7 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
     const url = new URL(SRU_BASE);
     url.search = new URLSearchParams({ version: '1.2', operation: 'searchRetrieve', query: cql,
       recordSchema: 'dublincore', maximumRecords: String(maximumRecords), startRecord: String(start) }).toString();
+    try {
     const res = await fetch(url, { headers: { accept: 'application/xml,text/xml' }, signal });
     if (!res.ok) throw new BnfError(`BnF SRU HTTP ${res.status}`, res.status);
     const xml = await res.text();
@@ -290,6 +291,11 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
     const total = Number(root.numberOfRecords ?? 0);
     if (!rows.length || next <= start || next > total || maximumRecords < MAX_RECORDS) break;
     start = next;
+    } catch (error) {
+      // Later pages are best effort: a slow page must not discard verified notices.
+      if (found.size) break;
+      throw error;
+    }
   }
   return [...found.values()];
 }
