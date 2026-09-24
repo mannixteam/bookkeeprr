@@ -251,6 +251,7 @@ async function searchComicVine(q: string): Promise<DiscoverResult[]> {
 
 async function searchBnfComics(q: string): Promise<DiscoverResult[]> {
   const hits = await searchFrenchComicSeries(q);
+  console.log('[BNF-DEBUG]', JSON.stringify(hits.map(h => ({ title: h.name, ark: h.bnfArk, isbn: h.volumes.map(v => v.isbn).filter(Boolean), cover: h.coverUrl }))));
   return hits.map((h) => ({
     contentType: 'comic' as const,
     sourceId: h.bnfArk,

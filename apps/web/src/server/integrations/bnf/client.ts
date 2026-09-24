@@ -313,6 +313,11 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
 }
 
 function coverUrl(record: ParsedRecord): string {
+  const isbn = record.isbn ?? record.ean;
+  if (isbn) {
+    return `https://bdi.dlpdomain.com/album/${isbn}/couv/M385x862/cover.jpg`;
+  }
+
   const url = new URL(COVER_BASE);
   url.searchParams.set('idArk', record.ark);
   url.searchParams.set('couverture', '1');

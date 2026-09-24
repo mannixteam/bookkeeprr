@@ -36,6 +36,7 @@ const PROXIED_HOSTS = new Set<string>([
   'cdn.novelupdates.com',
   'books.google.com',
   'books.googleusercontent.com',
+  'bdi.dlpdomain.com',
 ]);
 
 /** Rewrites allowlisted external cover URLs to go through the image proxy. */
