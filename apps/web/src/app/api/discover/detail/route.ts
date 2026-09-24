@@ -1,3 +1,5 @@
+import { getFrenchCatalogSeries } from '@/server/integrations/french-catalog/client';
+import { googleBooksApiKeySetting } from '@/server/db/settings/googlebooks';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { CONTENT_TYPES, type ContentType } from '@/server/content-type';
@@ -20,6 +22,8 @@ const DISCOVER_SOURCES = [
   'mal',
   'mangadex',
   'comicvine',
+  'bnf',
+  'frenchbooks',
   'openlibrary',
   'audnex',
   'nyt',
@@ -232,6 +236,11 @@ async function resolveDetail(
   mdexId: string | undefined,
   title: string | undefined,
 ): Promise<DiscoverDetail> {
+  if ((contentType === 'comic' || contentType === 'manga') && (source === 'bnf' || source === 'frenchbooks')) {
+    const detail = await getFrenchCatalogSeries({ ark: source === 'bnf' ? id : null, isbn: source === 'frenchbooks' ? id.replace(/^fr-isbn:/, '') : null, title }, await googleBooksApiKeySetting.get());
+    const unknown = detail.volumes.filter(v => v.number == null).length;
+    return { description: [detail.description, unknown ? `${unknown} album(s) sans numéro fiable : aucun tome artificiel créé.` : null].filter(Boolean).join('\n\n') };
+  }
   switch (contentType) {
     case 'manga':
       return mangaDetail(source, id, mdexId, title);
@@ -275,3 +284,4 @@ export async function GET(req: Request): Promise<NextResponse> {
     return NextResponse.json(EMPTY);
   }
 }
+

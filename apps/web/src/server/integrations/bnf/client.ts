@@ -1,8 +1,8 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { extractBookIdentifiers } from './identifiers';
+import { frenchCoverUrl } from '../french-catalog/model';
 
 const SRU_BASE = 'https://catalogue.bnf.fr/api/SRU';
-const COVER_BASE = 'https://openapi.bnf.fr/couverture/image/image/recupererImage';
 const TIMEOUT_MS = 20_000;
 const MAX_RECORDS = 100;
 
@@ -130,13 +130,13 @@ function titleAndVolume(raw: string, context: string): { baseTitle: string; numb
 
   let baseTitle = title;
   const suffix = title.match(
-    /^(.*?)(?:\s*[.\-–—:]\s*)?(?:tomes?|t\.|volumes?|vol\.?|livres?)\s*0*(\d{1,3})\b/i,
+    /^(.*?)(?:\s*[.\-–—:]\s*)?\b(?:tomes?|t\.|volumes?|vol\.?|livres?)\s*0*(\d{1,3})\b/i,
   );
   if (suffix?.[1]) {
     baseTitle = suffix[1].trim();
     if (number == null && suffix[2]) number = Number(suffix[2]);
   } else {
-    const dotted = title.match(/^(.*?)\s*\.\s*0*(\d{1,3})\s*$/);
+    const dotted = title.match(/^(.*?)\s*\.\s*0*(\d{1,3})(?:\s*[,.:]\s*.*)?\s*$/);
     if (dotted?.[1] && dotted[2]) {
       const n = Number(dotted[2]);
       if (n >= 1 && n <= 300) {
@@ -295,18 +295,7 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
 }
 
 function coverUrl(record: ParsedRecord): string {
-  const isbn = record.ean;
-  if (isbn) {
-    return `https://bdi.dlpdomain.com/album/${isbn}/couv/M385x862/cover.jpg`;
-  }
-
-  const url = new URL(COVER_BASE);
-  url.searchParams.set('idArk', record.ark);
-  url.searchParams.set('couverture', '1');
-  url.searchParams.set('taille', 'originale');
-  url.searchParams.set('largeur', '900');
-  url.searchParams.set('hauteur', '1400');
-  return url.toString();
+  return frenchCoverUrl(record.ean, record.ark)!;
 }
 
 function bestRelationForQuery(record: ParsedRecord, query: string): string | null {

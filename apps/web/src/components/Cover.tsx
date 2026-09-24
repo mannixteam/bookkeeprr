@@ -43,7 +43,12 @@ const PROXIED_HOSTS = new Set<string>([
 export function proxiedSrc(src: string | null | undefined): string | null | undefined {
   if (!src) return src;
   try {
-    if (PROXIED_HOSTS.has(new URL(src).host)) {
+    const url = new URL(src);
+    if (url.hostname === 'bdi.dlpdomain.com') {
+      const ean = /^\/album\/(97[89]\d{10})\//.exec(url.pathname)?.[1];
+      if (ean) return `/api/french-cover?ean=${ean}`;
+    }
+    if (PROXIED_HOSTS.has(url.host)) {
       return `/api/img?u=${encodeURIComponent(src)}`;
     }
   } catch {
@@ -160,3 +165,4 @@ export function Cover({
     </div>
   );
 }
+

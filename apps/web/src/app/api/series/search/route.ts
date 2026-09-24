@@ -1,3 +1,5 @@
+import { searchFrenchCatalog } from '@/server/integrations/french-catalog/client';
+import { googleBooksApiKeySetting } from '@/server/db/settings/googlebooks';
 import { NextResponse } from 'next/server';
 import { searchNovelCached } from '@/server/integrations/anilist/cache';
 import { searchMangaWithFallback } from '@/server/discover/manga-search';
@@ -28,7 +30,10 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   if (parsed.data.contentType === 'comic') {
     const apiKey = await comicVineApiKeySetting.get();
+    const french = await searchFrenchCatalog(parsed.data.q, await googleBooksApiKeySetting.get()).catch(() => []);
+    const frenchResults = french.map(h => ({ ...h, issueCount: h.volumeCount, frenchIsbn: h.frenchIsbn ?? undefined, bnfArk: h.bnfArk ?? undefined }));
     if (!isComicVineConfigured(apiKey)) {
+      if (frenchResults.length) return NextResponse.json({ contentType: 'comic', results: frenchResults });
       return NextResponse.json(
         { error: 'comicvine not configured', hint: 'configure /settings/comicvine' },
         { status: 503 },
@@ -36,8 +41,9 @@ export async function GET(req: Request): Promise<NextResponse> {
     }
     try {
       const results = await searchVolumes(apiKey, parsed.data.q);
-      return NextResponse.json({ contentType: 'comic', results });
+      return NextResponse.json({ contentType: 'comic', results: [...frenchResults, ...results] });
     } catch (err) {
+      if (frenchResults.length) return NextResponse.json({ contentType: 'comic', results: frenchResults });
       const message = err instanceof ComicVineError ? err.message : (err as Error).message;
       return NextResponse.json({ error: message }, { status: 502 });
     }
@@ -116,3 +122,4 @@ export async function POST(req: Request): Promise<NextResponse> {
     );
   }
 }
+

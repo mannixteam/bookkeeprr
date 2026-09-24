@@ -29,6 +29,7 @@ export const ALLOWED_IMAGE_HOSTS = new Set<string>([
   'books.google.com',
   'books.googleusercontent.com',
   'openapi.bnf.fr',
+  'bdi.dlpdomain.com',
 ]);
 
 /**
@@ -107,3 +108,4 @@ export function proxiedCoverUrl(url: string | null | undefined): string | null {
   if (parsed.protocol !== 'https:' || !isAllowlistedImageHost(parsed.host)) return url;
   return `/api/img?u=${encodeURIComponent(url)}`;
 }
+

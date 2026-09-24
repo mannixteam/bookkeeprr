@@ -1,3 +1,5 @@
+import { extractBnfArk, extractFrenchIsbn } from '@/lib/bnf-marker';
+import { normalized } from '@/server/integrations/french-catalog/model';
 import { and, asc, desc, eq, gte, inArray, isNotNull, like, sql } from 'drizzle-orm';
 import { getDb } from './client';
 import {
@@ -77,6 +79,20 @@ export type SeriesUpdate = Partial<{
 
 export async function insertSeries(input: SeriesCreate): Promise<number> {
   return withWriteLock(async () => {
+    const ark = extractBnfArk(input.extraSearchTermsJson);
+    const isbn = extractFrenchIsbn(input.extraSearchTermsJson);
+    if (ark || isbn) {
+      const existing = await getDb().select().from(series).where(eq(series.contentType, input.contentType ?? 'comic'));
+      const duplicate = existing.find(row => {
+        const otherArk = extractBnfArk(row.extraSearchTermsJson);
+        const otherIsbn = extractFrenchIsbn(row.extraSearchTermsJson);
+        if (!otherArk && !otherIsbn) return false;
+        return (ark && ark === otherArk) || (isbn && isbn === otherIsbn) ||
+          (input.publisher && row.publisher && normalized(input.publisher) === normalized(row.publisher) &&
+            normalized(input.titleEnglish) !== '' && normalized(input.titleEnglish) === normalized(row.titleEnglish));
+      });
+      if (duplicate) return duplicate.id;
+    }
     const [row] = await getDb()
       .insert(series)
       .values({
@@ -448,3 +464,4 @@ export async function listSeriesWithRecentReleases(cutoff: Date | null): Promise
   if (ids.length === 0) return [];
   return getDb().select().from(series).where(inArray(series.id, ids));
 }
+

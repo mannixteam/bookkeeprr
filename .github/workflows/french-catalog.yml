@@ -34,7 +34,36 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends p7zip-full
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @bookkeeprr/web typecheck
+      - name: Live French catalog smoke
+        continue-on-error: true
+        working-directory: apps/web
+        run: pnpm exec tsx scripts/french-catalog-live.ts > french-catalog-live.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: french-catalog-live
+          path: apps/web/french-catalog-live.json
       - run: pnpm --filter @bookkeeprr/web test
         env:
           BOOKKEEPRR_7Z_BIN: 7z
       - run: pnpm --filter @bookkeeprr/web build
+  container:
+    needs: web-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build isolated test image
+        run: docker build -f apps/web/Dockerfile --build-arg BOOKKEEPRR_COMMIT=${{ github.sha }} -t bookkeeprr-fr:test .
+      - name: Boot fresh configuration
+        run: |
+          docker run -d --name bookkeeprr-fr-smoke -p 127.0.0.1:3303:3000 bookkeeprr-fr:test
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3303/api/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs bookkeeprr-fr-smoke
+          exit 1
+      - name: Container logs
+        if: always()
+        run: docker logs bookkeeprr-fr-smoke || true
