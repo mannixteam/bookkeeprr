@@ -36,6 +36,8 @@ export type LightNovelSheetHit = Omit<SearchHit, 'anilistId'> & {
 export type ComicSheetHit = Omit<ComicSearchHit, 'comicvineId'> & {
   comicvineId?: number | null;
   bnfArk?: string | null;
+  frenchIsbn?: string | null;
+  contentType?: 'comic' | 'manga';
 };
 
 export type AddSheetTarget =
@@ -62,6 +64,11 @@ function parseIdOrNull(s: string): number | null {
 }
 
 export function toSheetHit(result: DiscoverResult): AddSheetTarget {
+  if ((result.contentType === 'comic' || result.contentType === 'manga') && (result.sources?.bnf || result.sources?.frenchIsbn)) {
+    return { type: 'comic', hit: { bnfArk: result.sources.bnf, frenchIsbn: result.sources.frenchIsbn,
+      contentType: result.contentType, name: result.title, publisher: result.author ?? null,
+      startYear: result.year ?? null, issueCount: null, coverUrl: result.coverUrl ?? null, description: result.description ?? null } };
+  }
   switch (result.contentType) {
     case 'manga': {
       // AniList-only / cross-linked carry a real anilistId; MAL-only carry malId
@@ -160,3 +167,4 @@ export function toSheetHit(result: DiscoverResult): AddSheetTarget {
     }
   }
 }
+

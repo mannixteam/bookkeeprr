@@ -1,3 +1,4 @@
+import { bookEan } from '@/server/integrations/bnf/identifiers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import type { z } from 'zod';
@@ -22,7 +23,7 @@ import { googleBooksHydrateDescriptor } from '@/server/jobs/kinds/googlebooks-hy
 import { createSeriesFromMatch } from '@/server/importer/adopt';
 import { sanitizeForFs, kickHydrate, enqueueReleaseSearchOnAdd } from '@/server/importer/series-helpers';
 import type { Candidate } from '@/server/importer/match-candidate';
-import { withBnfArk } from '@/lib/bnf-marker';
+import { withBnfArk, withFrenchIsbn } from '@/lib/bnf-marker';
 
 export const dynamic = 'force-dynamic';
 
@@ -182,26 +183,30 @@ export async function POST(req: Request): Promise<NextResponse> {
   };
 
   try {
-    if (parsed.contentType === 'comic') {
-      if (parsed.comicvineId == null && parsed.bnfArk == null) {
+    if (parsed.contentType === 'comic' || (parsed.contentType === 'manga' && (parsed.bnfArk || parsed.frenchIsbn))) {
+      const comicvineId = parsed.contentType === 'comic' ? parsed.comicvineId : undefined;
+      if (parsed.frenchIsbn && !bookEan(parsed.frenchIsbn)) return NextResponse.json({ error: 'invalid French ISBN checksum' }, { status: 400 });
+      if (comicvineId == null && parsed.bnfArk == null && parsed.frenchIsbn == null) {
         return NextResponse.json({ error: 'comic requires comicvineId or bnfArk' }, { status: 400 });
       }
-      const isBnf = parsed.bnfArk != null;
+      const isBnf = parsed.bnfArk != null || parsed.frenchIsbn != null;
+      const markers = parsed.bnfArk ? withBnfArk('[]', parsed.bnfArk) : '[]';
       const id = await insertSeries({
-        contentType: 'comic',
+        contentType: parsed.contentType,
         anilistId: null,
-        comicvineId: parsed.comicvineId ?? null,
+        comicvineId: comicvineId ?? null,
         publisher: parsed.publisher ?? null,
         startYear: parsed.startYear ?? null,
-        titleEnglish: parsed.titleEnglish,
+        titleEnglish: parsed.titleEnglish ?? '',
         status: parsed.status,
-        rootPath: parsed.rootPath ?? (await deriveDefaultRoot('comic', parsed.titleEnglish)),
+        rootPath: parsed.rootPath ?? (await deriveDefaultRoot(parsed.contentType, parsed.titleEnglish ?? '')),
         qualityProfileId: parsed.qualityProfileId,
         description: parsed.description ?? null,
         coverUrl: parsed.coverUrl ?? null,
         monitoring: parsed.monitoring,
         granularity: isBnf ? 'volume' : 'chapter',
-        extraSearchTermsJson: isBnf ? withBnfArk('[]', parsed.bnfArk!) : '[]',
+        extraSearchTermsJson: parsed.frenchIsbn ? withFrenchIsbn(markers, parsed.frenchIsbn) : markers,
+        isbn: parsed.frenchIsbn ?? null,
         groupId: parsed.groupId ?? null,
       });
       if (isBnf) {
@@ -212,7 +217,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         kickHydrate(comicvineHydrateDescriptor);
       }
       await enqueueReleaseSearchOnAdd(id, parsed.monitoring);
-      await recordCreate(id, parsed.titleEnglish);
+      await recordCreate(id, parsed.titleEnglish ?? null);
       const row = await getSeries(id);
       return created(row ? await withGroupPath(row) : row);
     } else if (parsed.contentType === 'light_novel') {
@@ -389,3 +394,4 @@ export async function POST(req: Request): Promise<NextResponse> {
     throw err;
   }
 }
+

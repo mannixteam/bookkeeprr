@@ -7,7 +7,7 @@ import { searchMangaByTitle } from '@/server/integrations/mangadex/client';
 import { dedupeResults } from '@/server/discover/merge';
 import { comicVineApiKeySetting, isComicVineConfigured } from '@/server/db/settings/comicvine';
 import { searchVolumes, ComicVineError } from '@/server/integrations/comicvine';
-import { searchFrenchComicSeries } from '@/server/integrations/bnf';
+import { searchFrenchCatalog } from '@/server/integrations/french-catalog/client';
 import { searchBooks, OpenLibraryError } from '@/server/integrations/openlibrary';
 import { searchVolumes as searchGoogleBooksVolumes } from '@/server/integrations/googlebooks';
 import { googleBooksApiKeySetting } from '@/server/db/settings/googlebooks';
@@ -63,6 +63,7 @@ export type DiscoverResult = {
     mal?: number;
     comicvine?: number;
     bnf?: string;
+    frenchIsbn?: string;
     openlibrary?: string;
     audnex?: string;
     /** NovelUpdates series slug, when this novel is sourced from / cross-linked to NU. */
@@ -250,21 +251,13 @@ async function searchComicVine(q: string): Promise<DiscoverResult[]> {
 }
 
 async function searchBnfComics(q: string): Promise<DiscoverResult[]> {
-  const hits = await searchFrenchComicSeries(q);
-  return hits.map((h) => ({
-    contentType: 'comic' as const,
-    sourceId: h.bnfArk,
-    title: h.name,
-    year: h.startYear,
-    author: h.publisher,
-    coverUrl: h.coverUrl,
-    description: h.description,
-    source: 'bnf',
-    detail: [h.publisher, h.startYear, `${h.volumeCount} tome${h.volumeCount > 1 ? 's' : ''}`, 'BnF']
-      .filter(Boolean)
-      .join(' · '),
-    inLib: false,
-    sources: { bnf: h.bnfArk },
+  const hits = await searchFrenchCatalog(q, await googleBooksApiKeySetting.get());
+  return hits.map(h => ({
+    contentType: h.contentType, sourceId: h.bnfArk ?? `fr-isbn:${h.frenchIsbn}`,
+    title: h.name, year: h.startYear, author: h.publisher, isbn: h.frenchIsbn,
+    coverUrl: h.coverUrl, description: h.description, source: h.bnfArk ? 'bnf' : 'frenchbooks',
+    detail: [h.publisher, `${h.volumeCount} album(s) référencé(s)`, h.bnfArk ? 'BnF · FR' : 'Google Books · FR'].filter(Boolean).join(' · '),
+    inLib: false, sources: { ...(h.bnfArk ? { bnf: h.bnfArk } : {}), ...(h.frenchIsbn ? { frenchIsbn: h.frenchIsbn } : {}) },
   }));
 }
 
@@ -462,10 +455,15 @@ async function searchSingleType(
   }
   if (contentType === 'comic') {
     try {
-      return { results: await searchComics(q, providers.comicvine) };
+      return { results: (await searchComics(q, providers.comicvine)).filter(r => r.contentType === 'comic') };
     } catch (err) {
       return { results: [], error: err instanceof Error ? err.message : String(err) };
     }
+  }
+
+  if (contentType === 'manga') {
+    const [fr, original] = await Promise.allSettled([searchBnfComics(q), searchManga(q, providers)]);
+    return { results: dedupeResults([...(fr.status === 'fulfilled' ? fr.value.filter(r => r.contentType === 'manga') : []), ...(original.status === 'fulfilled' ? original.value : [])]), ...(fr.status === 'rejected' ? { error: 'Catalogue français indisponible' } : {}) };
   }
 
   // Ebook search is dual-source (OL + GB) — it never throws, returns its own
@@ -480,7 +478,6 @@ async function searchSingleType(
 
   const run = (): Promise<DiscoverResult[]> => {
     switch (contentType) {
-      case 'manga':      return searchManga(q, providers);
       case 'audiobook':  return providers.audnex ? searchAudio(q) : Promise.resolve([]);
     }
   };
@@ -554,9 +551,9 @@ async function searchAllProviders(q: string, providers: SearchProviders): Promis
     mergeNovelResults(byKey['anilist-novel'] ?? [], byKey['novelupdates'] ?? []),
   );
   const results: DiscoverResult[] = [
+    ...(byKey['comics'] ?? []),
     ...(byKey['anilist-manga'] ?? []),
     ...novels,
-    ...(byKey['comics'] ?? []),
     ...ebookOut.results,
     ...(byKey['audnex'] ?? []),
   ];

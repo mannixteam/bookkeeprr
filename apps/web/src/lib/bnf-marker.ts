@@ -18,7 +18,7 @@ export function extractBnfArk(raw: string | null | undefined): string | null {
 }
 
 export function visibleSearchTerms(raw: string | null | undefined): string[] {
-  return parseTerms(raw).filter((term) => !term.startsWith(BNF_MARKER_PREFIX));
+  return parseTerms(raw).filter((term) => !term.startsWith(BNF_MARKER_PREFIX) && !term.startsWith('@fr-isbn:'));
 }
 
 export function withBnfArk(raw: string | null | undefined, ark: string): string {
@@ -31,5 +31,15 @@ export function serializeVisibleTermsPreservingBnf(
   visible: string[],
 ): string {
   const ark = extractBnfArk(raw);
-  return JSON.stringify(ark ? [...visible, `${BNF_MARKER_PREFIX}${ark}`] : visible);
+  const isbn = extractFrenchIsbn(raw);
+  return JSON.stringify([...visible, ...(ark ? [`${BNF_MARKER_PREFIX}${ark}`] : []), ...(isbn ? [`@fr-isbn:${isbn}`] : [])]);
+}
+
+
+export function extractFrenchIsbn(raw: string | null | undefined): string | null {
+  const term = parseTerms(raw).find(v => /^@fr-isbn:97[89]\d{10}$/.test(v));
+  return term?.slice(9) ?? null;
+}
+export function withFrenchIsbn(raw: string | null | undefined, isbn: string): string {
+  return JSON.stringify([...parseTerms(raw).filter(v => !v.startsWith('@fr-isbn:')), `@fr-isbn:${isbn}`]);
 }

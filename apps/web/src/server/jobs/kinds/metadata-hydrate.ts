@@ -6,8 +6,9 @@ import { insertVolume, listVolumesBySeries, updateVolume } from '@/server/db/vol
 import { logger } from '@/server/logger';
 import type { JobKindDescriptor } from '../types';
 import { DEFAULT_TIMEOUT_MS } from '../types';
-import { getFrenchComicSeries } from '@/server/integrations/bnf';
-import { extractBnfArk } from '@/lib/bnf-marker';
+import { getFrenchCatalogSeries } from '@/server/integrations/french-catalog/client';
+import { googleBooksApiKeySetting } from '@/server/db/settings/googlebooks';
+import { extractBnfArk, extractFrenchIsbn } from '@/lib/bnf-marker';
 
 /** Maps a NovelUpdates `statusInCoo` string onto our series status enum. */
 function nuStatus(raw: string | null): 'releasing' | 'finished' | 'hiatus' | 'cancelled' | null {
@@ -37,16 +38,19 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
       log.warn({ seriesId: payload.seriesId }, 'series not found; skipping');
       return { volumesAdded: 0 };
     }
-    const bnfArk = series.contentType === 'comic' ? extractBnfArk(series.extraSearchTermsJson) : null;
-    if (bnfArk) {
-      const detail = await getFrenchComicSeries(bnfArk, series.titleEnglish);
+    const isFrenchType = series.contentType === 'comic' || series.contentType === 'manga';
+    const bnfArk = isFrenchType ? extractBnfArk(series.extraSearchTermsJson) : null;
+    const frenchIsbn = isFrenchType ? extractFrenchIsbn(series.extraSearchTermsJson) : null;
+    if (bnfArk || frenchIsbn) {
+      const detail = await getFrenchCatalogSeries({ ark: bnfArk, isbn: frenchIsbn, title: series.titleEnglish }, await googleBooksApiKeySetting.get());
       await updateSeries(series.id, {
         titleEnglish: detail.name,
         publisher: detail.publisher,
         startYear: detail.startYear,
         coverUrl: detail.coverUrl,
         description: detail.description,
-        totalVolumes: detail.volumeCount,
+        // Observed albums are not proof that a series is complete. Never shrink a known count.
+        totalVolumes: Math.max(series.totalVolumes ?? 0, ...detail.volumes.map(v => v.number ?? 0)) || null,
         granularity: 'volume',
       });
 
@@ -54,21 +58,23 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
       const byNumber = new Map(existing.map((v) => [v.number, v]));
       let added = 0;
       for (const volume of detail.volumes) {
+        if (volume.number == null) continue; // Never attach files to an invented ordinal.
         const metadataJson = JSON.stringify({
-          source: 'bnf',
+          source: volume.ark ? 'bnf' : 'googlebooks',
+          googleBooksId: volume.googleId ?? null,
           bnfArk: volume.ark,
           isbn: volume.isbn,
           ean: volume.ean,
           coverUrl: volume.coverUrl,
           publisher: volume.publisher,
           creators: volume.creators,
-          coverSource: 'Bibliothèque nationale de France',
+          coverSource: 'validated-multisource',
           coverRetrievedAt: new Date().toISOString().slice(0, 10),
         });
         const releaseDate = volume.year ? new Date(`${volume.year}-01-01T00:00:00Z`) : null;
         const row = byNumber.get(volume.number);
         if (row) {
-          await updateVolume(row.id, { title: volume.title, releaseDate, metadataJson });
+          await updateVolume(row.id, { title: volume.title, metadataJson });
         } else {
           await insertVolume({
             seriesId: series.id,
@@ -145,3 +151,4 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
     return { volumesAdded: added };
   },
 };
+

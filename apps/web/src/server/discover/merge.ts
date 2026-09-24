@@ -54,7 +54,7 @@ export function dedupeResults(rows: DiscoverResult[]): DiscoverResult[] {
   for (const row of rows) {
     // French editions and original-language ComicVine runs are not interchangeable.
     // Keep BnF publishers separate: identical titles alone do not identify an edition.
-    const edition = row.source === 'bnf' ? `::bnf::${normalizeTitle(row.author ?? '')}` : '';
+    const edition = (row.source === 'bnf' || row.source === 'frenchbooks') ? `::bnf::${normalizeTitle(row.author ?? '')}` : '';
     const key = `${row.contentType}::${normalizeTitle(row.title)}${edition}`;
     const existingIdx = indexByKey.get(key);
     if (existingIdx === undefined) {

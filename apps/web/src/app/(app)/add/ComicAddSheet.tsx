@@ -19,6 +19,8 @@ import { apiFetch } from '@/lib/api-fetch';
 type ComicSearchHit = {
   comicvineId?: number | null;
   bnfArk?: string | null;
+  frenchIsbn?: string | null;
+  contentType?: 'comic' | 'manga';
   name: string;
   publisher: string | null;
   startYear: number | null;
@@ -63,7 +65,9 @@ export function ComicAddSheet({ hit, onClose, groupId = null }: Props): React.JS
     mutationFn: async () => {
       if (effectiveQpId === null) throw new Error('no quality profile available');
       const body = {
-        contentType: 'comic' as const,
+        contentType: hit.contentType ?? 'comic',
+        status: 'releasing',
+        frenchIsbn: hit.frenchIsbn ?? undefined,
         ...(hit.bnfArk ? { bnfArk: hit.bnfArk } : { comicvineId: hit.comicvineId }),
         publisher: hit.publisher ?? undefined,
         startYear: hit.startYear ?? undefined,
@@ -139,3 +143,4 @@ export function ComicAddSheet({ hit, onClose, groupId = null }: Props): React.JS
     </Sheet>
   );
 }
+

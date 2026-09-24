@@ -26,6 +26,10 @@ const GroupIdCreateField = z
 
 // Manga branch — covers manga (and other non-comic types with the existing flat schema)
 export const MangaBody = z.object({
+  bnfArk: z.string().regex(/^ark:\/12148\/cb[0-9a-z]+$/i).optional(),
+  frenchIsbn: z.string().regex(/^97[89]\d{10}$/).optional(),
+  publisher: z.string().optional(),
+  startYear: z.number().int().optional(),
   contentType: z.literal('manga').optional().default('manga'),
   anilistId: z.number().int().nullable().optional(),
   malId: z.number().int().positive().nullish(),
@@ -52,6 +56,7 @@ export const MangaBody = z.object({
 export const ComicBody = z.object({
   contentType: z.literal('comic'),
   comicvineId: z.number().int().positive().optional(),
+  frenchIsbn: z.string().regex(/^97[89]\d{10}$/).optional(),
   bnfArk: z.string().regex(/^ark:\/12148\/cb[0-9a-z]+$/i).optional(),
   publisher: z.string().optional(),
   startYear: z.number().int().optional(),
@@ -436,3 +441,4 @@ export const SeriesSearchResponse = z.union([
 export const SeriesSearchPostResponse = z.object({
   hits: z.array(MangaSearchHit),
 });
+

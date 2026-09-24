@@ -24,6 +24,14 @@ export function buildSeriesBody(
   const monitoring = 'future' as const;
   const group = opts.groupId != null ? { groupId: opts.groupId } : {};
 
+  if ((result.contentType === 'comic' || result.contentType === 'manga') && (result.sources?.bnf || result.sources?.frenchIsbn)) {
+    requireRootPath(rootPath, result.contentType);
+    return { contentType: result.contentType, bnfArk: result.sources.bnf, frenchIsbn: result.sources.frenchIsbn,
+      titleEnglish: result.title, publisher: result.author ?? undefined, startYear: result.year ?? undefined,
+      coverUrl: result.coverUrl ?? null, description: result.description ?? null, status: 'releasing',
+      rootPath, qualityProfileId, monitoring, granularity: 'volume', ...group };
+  }
+
   switch (result.contentType) {
     case 'manga': {
       // A manga result may be AniList-only, cross-linked (AniList + MAL), or
@@ -154,3 +162,4 @@ function requireRootPath(rootPath: string | undefined, type: string): asserts ro
     throw new Error(`Cannot quick-add ${type}: rootPath is required`);
   }
 }
+

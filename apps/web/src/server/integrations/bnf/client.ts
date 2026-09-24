@@ -1,4 +1,4 @@
-import { XMLParser } from 'fast-xml-parser';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { extractBookIdentifiers } from './identifiers';
 
 const SRU_BASE = 'https://catalogue.bnf.fr/api/SRU';
@@ -15,7 +15,7 @@ export class BnfError extends Error {
 
 export type BnfComicVolume = {
   ark: string;
-  number: number;
+  number: number | null;
   title: string;
   publisher: string | null;
   year: number | null;
@@ -27,6 +27,7 @@ export type BnfComicVolume = {
 };
 
 export type BnfComicSeriesHit = {
+  contentType?: 'comic' | 'manga';
   bnfArk: string;
   name: string;
   publisher: string | null;
@@ -50,6 +51,7 @@ type ParsedRecord = {
   creators: string[];
   language: string | null;
   comicLike: boolean;
+  manga: boolean;
   relations: string[];
 };
 
@@ -250,6 +252,7 @@ function parseRecord(record: unknown): ParsedRecord | null {
     creators: [...new Set(creators)],
     language,
     comicLike,
+    manga: /manga/.test(comicHaystack),
     relations,
   };
 }
@@ -267,31 +270,28 @@ function escapeCql(value: string): string {
 }
 
 async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRecord[]> {
-  const url = new URL(SRU_BASE);
-  url.searchParams.set('version', '1.2');
-  url.searchParams.set('operation', 'searchRetrieve');
-  url.searchParams.set('query', cql);
-  url.searchParams.set('recordSchema', 'dublincore');
-  url.searchParams.set('maximumRecords', String(maximumRecords));
-
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: { accept: 'application/xml,text/xml;q=0.9,*/*;q=0.1' },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-  } catch (err) {
-    throw new BnfError(`BnF SRU request failed: ${err instanceof Error ? err.message : String(err)}`);
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
+  const found = new Map<string, ParsedRecord>();
+  let start = 1;
+  for (let page = 0; page < 5; page++) {
+    const url = new URL(SRU_BASE);
+    url.search = new URLSearchParams({ version: '1.2', operation: 'searchRetrieve', query: cql,
+      recordSchema: 'dublincore', maximumRecords: String(maximumRecords), startRecord: String(start) }).toString();
+    const res = await fetch(url, { headers: { accept: 'application/xml,text/xml' }, signal });
+    if (!res.ok) throw new BnfError(`BnF SRU HTTP ${res.status}`, res.status);
+    const xml = await res.text();
+    if (xml.length > 4_000_000 || XMLValidator.validate(xml) !== true) throw new BnfError('Invalid BnF XML response');
+    const doc = parser.parse(xml) as { searchRetrieveResponse?: { diagnostics?: unknown; nextRecordPosition?: string; numberOfRecords?: string } };
+    const root = doc.searchRetrieveResponse;
+    if (!root || root.diagnostics) throw new BnfError('BnF SRU diagnostic or unexpected response');
+    const rows = recordList(doc);
+    for (const row of rows) { const record = parseRecord(row); if (record) found.set(record.ark, record); }
+    const next = Number(root.nextRecordPosition ?? start + rows.length);
+    const total = Number(root.numberOfRecords ?? 0);
+    if (!rows.length || next <= start || next > total || maximumRecords < MAX_RECORDS) break;
+    start = next;
   }
-  if (!res.ok) throw new BnfError(`BnF SRU HTTP ${res.status}`, res.status);
-  const xml = await res.text();
-  let doc: unknown;
-  try {
-    doc = parser.parse(xml);
-  } catch (err) {
-    throw new BnfError(`BnF SRU XML parse failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  return recordList(doc).map(parseRecord).filter((v): v is ParsedRecord => v !== null);
+  return [...found.values()];
 }
 
 function coverUrl(record: ParsedRecord): string {
@@ -327,7 +327,7 @@ function bestRelationForQuery(record: ParsedRecord, query: string): string | nul
 }
 
 function groupTitle(record: ParsedRecord, query: string): string {
-  if (record.rawNumber != null) return record.baseTitle;
+  if (record.rawNumber != null && norm(record.baseTitle) !== norm(record.title)) return record.baseTitle;
   return bestRelationForQuery(record, query) ?? record.baseTitle;
 }
 
@@ -339,7 +339,7 @@ function recordQuality(record: ParsedRecord): number {
   return (record.ean ? 8 : 0) + (record.isbn ? 4 : 0) + (record.description ? 2 : 0) + (record.year ?? 0) / 10000;
 }
 
-function chooseRecords(records: ParsedRecord[]): Array<{ record: ParsedRecord; number: number }> {
+function chooseRecords(records: ParsedRecord[]): Array<{ record: ParsedRecord; number: number | null }> {
   const hasNumbered = records.some((r) => r.rawNumber != null);
   if (hasNumbered) {
     const byNumber = new Map<number, ParsedRecord>();
@@ -348,13 +348,14 @@ function chooseRecords(records: ParsedRecord[]): Array<{ record: ParsedRecord; n
       const current = byNumber.get(record.rawNumber);
       if (!current || recordQuality(record) > recordQuality(current)) byNumber.set(record.rawNumber, record);
     }
-    return [...byNumber.entries()]
+    const numbered = [...byNumber.entries()]
       .sort(([a], [b]) => a - b)
       .map(([number, record]) => ({ record, number }));
+    return [...numbered, ...records.filter(r => r.rawNumber == null).filter((r, i, all) => all.findIndex(other => norm(other.title) === norm(r.title)) === i).map(record => ({ record, number: null }))];
   }
 
   // Named albums (classic Franco-Belgian series) often have several reissues in
-  // BnF. Keep one record per album title, then infer order from first publication year.
+  // BnF. Keep one record per album title without inventing a volume number.
   const byTitle = new Map<string, ParsedRecord>();
   for (const record of records) {
     const key = norm(record.title);
@@ -363,7 +364,7 @@ function chooseRecords(records: ParsedRecord[]): Array<{ record: ParsedRecord; n
   }
   return [...byTitle.values()]
     .sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.title.localeCompare(b.title))
-    .map((record, index) => ({ record, number: index + 1 }));
+    .map((record) => ({ record, number: null }));
 }
 
 function finalizeGroup(records: ParsedRecord[], query: string): BnfComicSeriesHit {
@@ -388,11 +389,12 @@ function finalizeGroup(records: ParsedRecord[], query: string): BnfComicSeriesHi
     .map(({ record }) => record.year)
     .filter((v): v is number => v != null)
     .sort((a, b) => a - b)[0] ?? null;
-  const volumeCount = Math.max(volumes.length, ...volumes.map((v) => v.number));
+  const volumeCount = volumes.length;
   const attribution = `Source des métadonnées : Bibliothèque nationale de France (consultée le ${new Date().toISOString().slice(0, 10)}).`;
   const description = canonical.description ? `${canonical.description}\n\n${attribution}` : attribution;
   return {
     bnfArk: canonical.ark,
+    contentType: records.some(r => r.manga) ? 'manga' : 'comic',
     name,
     publisher: canonical.publisher,
     startYear: firstPublishedYear,
@@ -441,7 +443,8 @@ function groupRecords(records: ParsedRecord[], query: string): BnfComicSeriesHit
 export async function searchFrenchComicSeries(query: string): Promise<BnfComicSeriesHit[]> {
   const q = query.trim();
   if (q.length < 2) return [];
-  const cql = `(bib.title all "${escapeCql(q)}") and (bib.recordtype any "mon")`;
+  const ean = extractBookIdentifiers([q]).ean;
+  const cql = ean ? `bib.isbn any "${ean}"` : `(bib.title all "${escapeCql(q)}") and (bib.recordtype any "mon")`;
   const records = await sru(cql);
   return groupRecords(records, q);
 }

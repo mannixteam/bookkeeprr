@@ -19,3 +19,22 @@ jobs:
         with:
           node-version: '22'
       - run: node --experimental-strip-types --test apps/web/tests/french-catalog.node.mjs
+  web-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: '9.15.0'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends p7zip-full
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @bookkeeprr/web typecheck
+      - run: pnpm --filter @bookkeeprr/web test
+        env:
+          BOOKKEEPRR_7Z_BIN: 7z
+      - run: pnpm --filter @bookkeeprr/web build
