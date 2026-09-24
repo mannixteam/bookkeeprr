@@ -27,6 +27,11 @@ describe('French BnF comics', () => {
     expect(r.targetHigh).toBe(1);
   });
 
+  it('matches recent ISBN-backed French comics without a BnF ARK', () => {
+    const series = { ...frenchComicSeries(), extraSearchTermsJson: JSON.stringify(['@fr-isbn:9782723488525']) };
+    expect(titleMatches(parseReleaseTitle('Sacrifice - Tome 1 - Remender et Fiumara - Urban Comics - FR'), series)).toBe(true);
+  });
+
   it('matches verbose French publisher release names for BnF-backed comics', () => {
     expect(
       titleMatches(
@@ -38,3 +43,4 @@ describe('French BnF comics', () => {
     ).toBe(true);
   });
 });
+

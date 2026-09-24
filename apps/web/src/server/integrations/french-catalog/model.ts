@@ -28,7 +28,7 @@ export function normalized(value: string | null | undefined): string {
 }
 /** Keep integral/deluxe/spin-off qualifiers; only strip an explicit volume suffix. */
 export function volumeTitle(title: string): { name: string; number: number | null } {
-  const match = /^(.*?)\s*(?:[-–—:.]\s*)?\b(?:tome|t\.|volume|vol\.?)\s*0*(\d{1,3})(?!\d)(?:\s*[-–—:.].*)?$/i.exec(title);
+  const match = /^(.*?)\s*(?:[-–—:.]\s*)?\b(?:tome|t\.?|volume|vol\.?)\s*0*(\d{1,3})(?!\d)(?:\s*[-–—:.].*)?$/i.exec(title);
   if (!match?.[1]?.trim() || !match[2]) return { name: title.trim(), number: null };
   const n = Number(match[2]);
   return { name: match[1].trim(), number: n > 0 ? n : null };

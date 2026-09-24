@@ -52,15 +52,17 @@ describe('French catalogue', () => {
   });
   it('preserves spin-offs and edition qualifiers', () => {
     expect(volumeTitle('Les Légendaires Origines - Tome 02')).toEqual({ name: 'Les Légendaires Origines', number: 2 });
+    expect(volumeTitle('Les Légendaires T02')).toEqual({ name: 'Les Légendaires', number: 2 });
     expect(volumeTitle('Batman Intégrale')).toEqual({ name: 'Batman Intégrale', number: null });
   });
   it('uses French Google Books when BnF is unavailable', async () => {
     vi.stubGlobal('fetch', vi.fn(async url => {
       if (String(url).includes('bnf.fr')) throw new Error('offline');
-      return Response.json({ items: [{ id: 'abc', volumeInfo: { title: 'Nouvelle BD - Tome 1', language: 'fr', publisher: 'Delcourt', categories: ['Comics & Graphic Novels'], industryIdentifiers: [{ identifier: '9782723488525' }] } }] });
+      return Response.json({ items: [{ id: 'abc', volumeInfo: { title: 'Nouvelle BD - Tome 1', language: 'fr', publisher: 'Éditions Delcourt', categories: ['Comics & Graphic Novels'], industryIdentifiers: [{ identifier: '9782723488525' }] } }] });
     }));
     const hits = await searchFrenchCatalog('Nouvelle BD');
     expect(hits[0]?.frenchIsbn).toBe('9782723488525');
+    expect(hits[0]?.publisher).toBe('Delcourt');
     expect(hits[0]?.volumes[0]?.number).toBe(1);
   });
   it('rejects foreign Google editions and French novels', async () => {

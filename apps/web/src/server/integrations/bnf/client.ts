@@ -186,7 +186,7 @@ const KNOWN_PUBLISHERS: Array<[RegExp, string]> = [
   [/\balbert\s+ren[eé]\b/i, 'Éditions Albert René'],
 ];
 
-function canonicalPublisher(raw: string | null): string | null {
+export function canonicalPublisher(raw: string | null): string | null {
   if (!raw) return null;
   for (const [pattern, name] of KNOWN_PUBLISHERS) {
     if (pattern.test(raw)) return name;

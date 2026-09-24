@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { searchFrenchComicSeries, getFrenchComicSeries, type BnfComicSeriesHit } from '../bnf';
+import { searchFrenchComicSeries, getFrenchComicSeries, canonicalPublisher, type BnfComicSeriesHit } from '../bnf';
 import { bookEan, extractBookIdentifiers } from '../bnf/identifiers';
 import { frenchCoverUrl, mergeFrenchSeries, normalized, volumeTitle, type FrenchSeries } from './model';
 
@@ -33,10 +33,10 @@ async function googleFrench(query: string, apiKey = ''): Promise<FrenchSeries[]>
     const parsed = volumeTitle(fullTitle);
     const year = /^(\d{4})/.exec(v.publishedDate ?? '');
     const coverUrl = frenchCoverUrl(ean, null, id);
-    out.push({ bnfArk: null, frenchIsbn: ean, name: parsed.name, publisher: v.publisher ?? null,
+    out.push({ bnfArk: null, frenchIsbn: ean, name: parsed.name, publisher: canonicalPublisher(v.publisher ?? null),
       startYear: year ? Number(year[1]) : null, volumeCount: 1, coverUrl, description: v.description ?? null,
       contentType: /manga/i.test(categories) ? 'manga' : 'comic',
-      volumes: [{ ark: null, googleId: id, number: parsed.number, title: fullTitle, publisher: v.publisher ?? null,
+      volumes: [{ ark: null, googleId: id, number: parsed.number, title: fullTitle, publisher: canonicalPublisher(v.publisher ?? null),
         year: year ? Number(year[1]) : null, isbn, ean, coverUrl, description: v.description ?? null, creators: v.authors ?? [] }],
     });
   }
