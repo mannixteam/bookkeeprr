@@ -461,11 +461,25 @@ async function searchSingleType(
     return { results };
   }
   if (contentType === 'comic') {
-    try {
-      return { results: await searchComics(q, providers.comicvine) };
-    } catch (err) {
-      return { results: [], error: err instanceof Error ? err.message : String(err) };
-    }
+    const [comicVineOut, bnfOut] = await Promise.allSettled([
+      searchComics(q, providers.comicvine),
+      searchBnfComics(q),
+    ]);
+
+    const results = [
+      ...(comicVineOut.status === 'fulfilled' ? comicVineOut.value : []),
+      ...(bnfOut.status === 'fulfilled' ? bnfOut.value : []),
+    ];
+
+    const errors = [
+      comicVineOut.status === 'rejected' ? (comicVineOut.reason instanceof Error ? comicVineOut.reason.message : String(comicVineOut.reason)) : null,
+      bnfOut.status === 'rejected' ? (bnfOut.reason instanceof Error ? bnfOut.reason.message : String(bnfOut.reason)) : null,
+    ].filter((value): value is string => Boolean(value));
+
+    return {
+      results: dedupeResults(results),
+      ...(results.length === 0 && errors.length > 0 ? { error: errors.join('; ') } : {}),
+    };
   }
 
   // Ebook search is dual-source (OL + GB) — it never throws, returns its own
