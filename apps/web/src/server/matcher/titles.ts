@@ -2,6 +2,7 @@ import { tokenize, tokensExcludingQualifiers } from '@/server/parser/tokens';
 import type { ParsedRelease } from '@/server/parser/release';
 import type { SeriesRow } from '@/server/db/schema';
 import type { ContentType } from '@/server/content-type';
+import { extractBnfArk, visibleSearchTerms } from '@/lib/bnf-marker';
 
 // Book-like content types name releases with the title PLUS a subtitle, the
 // author, the format and often the publisher — e.g.
@@ -16,13 +17,7 @@ const BOOK_CONTENT_TYPES: ReadonlySet<ContentType> = new Set<ContentType>([
 ]);
 
 function parseExtraTerms(json: string | null | undefined): string[] {
-  if (!json) return [];
-  try {
-    const v = JSON.parse(json);
-    return Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : [];
-  } catch {
-    return [];
-  }
+  return visibleSearchTerms(json);
 }
 
 function setEquals(a: string[], b: string[]): boolean {
@@ -96,7 +91,9 @@ export function titleMatches(
   // Audiobooks are the exception: narrator-led release names routinely drop the
   // author (and lead with the narrator), so requiring the author starves the
   // match. The title-prefix check alone is enough signal there.
-  if (BOOK_CONTENT_TYPES.has(series.contentType as ContentType)) {
+  const frenchPublisherComic =
+    (series.contentType as ContentType) === 'comic' && extractBnfArk(series.extraSearchTermsJson) !== null;
+  if (BOOK_CONTENT_TYPES.has(series.contentType as ContentType) || frenchPublisherComic) {
     const releaseSet = new Set(releaseCore);
     // Callers that match against names which never carry the author (e.g. the
     // library-import scanner, whose filenames hold publisher/group tags but not

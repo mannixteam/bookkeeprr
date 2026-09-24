@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { getManga } from '@/server/integrations/anilist/client';
 import { getSeriesBySlug } from '@/server/integrations/novelupdates';
-import { getSeries, updateSeriesMetadata } from '@/server/db/series';
-import { insertVolume, listVolumesBySeries } from '@/server/db/volumes';
+import { getSeries, updateSeries, updateSeriesMetadata } from '@/server/db/series';
+import { insertVolume, listVolumesBySeries, updateVolume } from '@/server/db/volumes';
 import { logger } from '@/server/logger';
 import type { JobKindDescriptor } from '../types';
 import { DEFAULT_TIMEOUT_MS } from '../types';
+import { getFrenchComicSeries } from '@/server/integrations/bnf';
+import { extractBnfArk } from '@/lib/bnf-marker';
 
 /** Maps a NovelUpdates `statusInCoo` string onto our series status enum. */
 function nuStatus(raw: string | null): 'releasing' | 'finished' | 'hiatus' | 'cancelled' | null {
@@ -35,6 +37,53 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
       log.warn({ seriesId: payload.seriesId }, 'series not found; skipping');
       return { volumesAdded: 0 };
     }
+    const bnfArk = series.contentType === 'comic' ? extractBnfArk(series.extraSearchTermsJson) : null;
+    if (bnfArk) {
+      const detail = await getFrenchComicSeries(bnfArk, series.titleEnglish);
+      await updateSeries(series.id, {
+        titleEnglish: detail.name,
+        publisher: detail.publisher,
+        startYear: detail.startYear,
+        coverUrl: detail.coverUrl,
+        description: detail.description,
+        totalVolumes: detail.volumeCount,
+        granularity: 'volume',
+      });
+
+      const existing = await listVolumesBySeries(series.id);
+      const byNumber = new Map(existing.map((v) => [v.number, v]));
+      let added = 0;
+      for (const volume of detail.volumes) {
+        const metadataJson = JSON.stringify({
+          source: 'bnf',
+          bnfArk: volume.ark,
+          isbn: volume.isbn,
+          ean: volume.ean,
+          coverUrl: volume.coverUrl,
+          publisher: volume.publisher,
+          creators: volume.creators,
+          coverSource: 'Bibliothèque nationale de France',
+          coverRetrievedAt: new Date().toISOString().slice(0, 10),
+        });
+        const releaseDate = volume.year ? new Date(`${volume.year}-01-01T00:00:00Z`) : null;
+        const row = byNumber.get(volume.number);
+        if (row) {
+          await updateVolume(row.id, { title: volume.title, releaseDate, metadataJson });
+        } else {
+          await insertVolume({
+            seriesId: series.id,
+            number: volume.number,
+            title: volume.title,
+            releaseDate,
+            metadataJson,
+          });
+          added++;
+        }
+      }
+      log.info({ seriesId: series.id, bnfArk, volumesAdded: added }, 'BnF comic hydrate complete');
+      return { volumesAdded: added };
+    }
+
     if (series.anilistId == null) {
       // NovelUpdates-anchored novel (no AniList id, but a NU slug): re-hydrate
       // title/cover/description/status from the NU client. NU yields no volume

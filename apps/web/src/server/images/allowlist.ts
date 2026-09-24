@@ -15,6 +15,7 @@
  * - cdn.novelupdates.com — NovelUpdates covers (Cloudflare-gated; see below)
  * - books.google.com         — Google Books cover thumbnails
  * - books.googleusercontent.com — Google Books high-res covers
+ * - openapi.bnf.fr        — BnF Catalogue général cover service
  */
 export const ALLOWED_IMAGE_HOSTS = new Set<string>([
   'uploads.mangadex.org',
@@ -27,6 +28,7 @@ export const ALLOWED_IMAGE_HOSTS = new Set<string>([
   'cdn.novelupdates.com',
   'books.google.com',
   'books.googleusercontent.com',
+  'openapi.bnf.fr',
 ]);
 
 /**

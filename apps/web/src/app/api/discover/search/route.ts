@@ -7,6 +7,7 @@ import { searchMangaByTitle } from '@/server/integrations/mangadex/client';
 import { dedupeResults } from '@/server/discover/merge';
 import { comicVineApiKeySetting, isComicVineConfigured } from '@/server/db/settings/comicvine';
 import { searchVolumes, ComicVineError } from '@/server/integrations/comicvine';
+import { searchFrenchComicSeries } from '@/server/integrations/bnf';
 import { searchBooks, OpenLibraryError } from '@/server/integrations/openlibrary';
 import { searchVolumes as searchGoogleBooksVolumes } from '@/server/integrations/googlebooks';
 import { googleBooksApiKeySetting } from '@/server/db/settings/googlebooks';
@@ -61,6 +62,7 @@ export type DiscoverResult = {
     mangadex?: string;
     mal?: number;
     comicvine?: number;
+    bnf?: string;
     openlibrary?: string;
     audnex?: string;
     /** NovelUpdates series slug, when this novel is sourced from / cross-linked to NU. */
@@ -229,7 +231,7 @@ async function enrichNovelCovers(results: DiscoverResult[]): Promise<DiscoverRes
   );
 }
 
-async function searchComics(q: string): Promise<DiscoverResult[]> {
+async function searchComicVine(q: string): Promise<DiscoverResult[]> {
   const apiKey = await comicVineApiKeySetting.get();
   if (!isComicVineConfigured(apiKey)) return [];
   const hits = await searchVolumes(apiKey, q);
@@ -245,6 +247,39 @@ async function searchComics(q: string): Promise<DiscoverResult[]> {
     inLib: false,
     sources: { comicvine: h.comicvineId },
   }));
+}
+
+async function searchBnfComics(q: string): Promise<DiscoverResult[]> {
+  const hits = await searchFrenchComicSeries(q);
+  return hits.map((h) => ({
+    contentType: 'comic' as const,
+    sourceId: h.bnfArk,
+    title: h.name,
+    year: h.startYear,
+    author: h.publisher,
+    coverUrl: h.coverUrl,
+    description: h.description,
+    source: 'bnf',
+    detail: [h.publisher, h.startYear, `${h.volumeCount} tome${h.volumeCount > 1 ? 's' : ''}`, 'BnF']
+      .filter(Boolean)
+      .join(' · '),
+    inLib: false,
+    sources: { bnf: h.bnfArk },
+  }));
+}
+
+async function searchComics(q: string, comicVineEnabled: boolean): Promise<DiscoverResult[]> {
+  const [bnfOut, cvOut] = await Promise.allSettled([
+    searchBnfComics(q),
+    comicVineEnabled ? searchComicVine(q) : Promise.resolve<DiscoverResult[]>([]),
+  ]);
+  const bnf = bnfOut.status === 'fulfilled' ? bnfOut.value : [];
+  const cv = cvOut.status === 'fulfilled' ? cvOut.value : [];
+  if (bnf.length === 0 && cv.length === 0) {
+    if (bnfOut.status === 'rejected') throw bnfOut.reason;
+    if (cvOut.status === 'rejected') throw cvOut.reason;
+  }
+  return dedupeResults([...bnf, ...cv]);
 }
 
 /**
@@ -425,6 +460,14 @@ async function searchSingleType(
     }
     return { results };
   }
+  if (contentType === 'comic') {
+    try {
+      return { results: await searchComics(q, providers.comicvine) };
+    } catch (err) {
+      return { results: [], error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   // Ebook search is dual-source (OL + GB) — it never throws, returns its own
   // error map so individual source outages surface to the UI without zeroing all results.
   if (contentType === 'ebook') {
@@ -438,19 +481,11 @@ async function searchSingleType(
   const run = (): Promise<DiscoverResult[]> => {
     switch (contentType) {
       case 'manga':      return searchManga(q, providers);
-      case 'comic':      return providers.comicvine ? searchComics(q) : Promise.resolve([]);
       case 'audiobook':  return providers.audnex ? searchAudio(q) : Promise.resolve([]);
     }
   };
   try {
     const results = await run();
-    if (results.length === 0 && contentType === 'comic' && providers.comicvine) {
-      // Could be unconfigured — surface a hint
-      const apiKey = await comicVineApiKeySetting.get();
-      if (!isComicVineConfigured(apiKey)) {
-        return { results, error: 'comicvine not configured' };
-      }
-    }
     return { results };
   } catch (err) {
     let message: string;
@@ -483,7 +518,7 @@ async function searchAllProviders(q: string, providers: SearchProviders): Promis
     // novel hits sharing a normalized title with an AniList novel collapse via
     // dedupeResults (AniList kept, `sources.novelupdates` grafted on).
     { key: 'novelupdates',   enabled: providers.novelupdates, fn: () => searchNovelsNU(q) },
-    { key: 'comicvine',      enabled: providers.comicvine,  fn: () => searchComics(q) },
+    { key: 'comics',         enabled: true,                 fn: () => searchComics(q, providers.comicvine) },
     { key: 'audnex',         enabled: providers.audnex,     fn: () => searchAudio(q) },
   ];
   const entries = allEntries.filter((e) => e.enabled);
@@ -521,7 +556,7 @@ async function searchAllProviders(q: string, providers: SearchProviders): Promis
   const results: DiscoverResult[] = [
     ...(byKey['anilist-manga'] ?? []),
     ...novels,
-    ...(byKey['comicvine'] ?? []),
+    ...(byKey['comics'] ?? []),
     ...ebookOut.results,
     ...(byKey['audnex'] ?? []),
   ];

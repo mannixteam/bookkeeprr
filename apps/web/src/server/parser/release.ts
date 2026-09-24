@@ -15,15 +15,15 @@ const LEADING_GROUP_RE = /^\s*\[([^\]]+)\]\s*/;
 const ALL_BRACKETS_RE = /\[[^\]]*\]/g;
 const PARENS_RE = /\(([^)]*)\)/g;
 
-const VOL_RANGE_RE = /\b(?:v|vol\.?|volumes?)\s*(\d+)\s*-\s*v?(\d+)\b/i;
-const VOL_SINGLE_RE = /\b(?:v|vol\.?|volume)\s*(\d+)\b/i;
+const VOL_RANGE_RE = /\b(?:v|vol\.?|volumes?|tomes?|t\.)\s*(\d+)\s*-\s*(?:v|vol\.?|tomes?|t\.)?\s*(\d+)\b/i;
+const VOL_SINGLE_RE = /\b(?:v|vol\.?|volume|tome|t\.)\s*(\d+)\b/i;
 const CH_RANGE_RE = /\b(?:c|ch\.?|chapters?)\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\b/i;
 const CH_SINGLE_RE = /\b(?:c|ch\.?|chapter)\s*(\d+(?:\.\d+)?)\b/i;
 
 // Japanese counter for volume: 第N巻
 const JP_VOL_RE = /第\s*(\d+)\s*巻/;
 
-const BATCH_MARKER_RE = /\b(batch|complete|collection|trilogy|omnibus|anthology|box\s?set)\b/i;
+const BATCH_MARKER_RE = /\b(batch|complete|collection|trilogy|omnibus|anthology|box\s?set|int[eé]grale|coffret)\b/i;
 
 // Comic issue patterns — fills the chapter slot (comics use chapter granularity)
 // Negative lookbehind avoids matching "Annual #N", "Special #N", "FCBD #N"

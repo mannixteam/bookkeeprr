@@ -56,18 +56,20 @@ export function buildSeriesBody(
     }
 
     case 'comic': {
+      const bnfArk = result.sources?.bnf ?? (result.source === 'bnf' ? result.sourceId : null);
       const comicvineId = result.sources?.comicvine ?? parseIntOrNull(result.sourceId);
-      if (comicvineId == null) {
-        throw new Error('Cannot quick-add comic: missing ComicVine id');
+      if (bnfArk == null && comicvineId == null) {
+        throw new Error('Cannot quick-add comic: missing BnF or ComicVine id');
       }
       requireRootPath(rootPath, 'comic');
       return {
         contentType: 'comic',
-        comicvineId,
+        ...(bnfArk ? { bnfArk } : { comicvineId: comicvineId! }),
         titleEnglish: result.title,
         publisher: result.author ?? undefined,
         startYear: result.year ?? undefined,
         coverUrl: result.coverUrl ?? null,
+        description: result.description ?? null,
         rootPath,
         qualityProfileId,
         monitoring,

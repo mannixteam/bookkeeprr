@@ -21,6 +21,7 @@ import type { SeriesRow } from '@/server/db/schema';
 import type { IndexerConfig } from '@/server/integrations/indexers/types';
 import { runAutoGrabForSeries } from '@/server/auto-grab/run';
 import { scoringWeightsSetting, adultFilterSetting } from '@/server/db/settings/matcher';
+import { visibleSearchTerms } from '@/lib/bnf-marker';
 
 const Payload = z.object({ indexerId: z.number().int().positive() });
 
@@ -36,13 +37,7 @@ function firstTitle(s: SeriesRow): string | null {
 }
 
 function parseExtraSearchTerms(raw: string | null | undefined): string[] {
-  if (!raw) return [];
-  try {
-    const v = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : [];
-  } catch {
-    return [];
-  }
+  return visibleSearchTerms(raw);
 }
 
 function applyTemplate(cfg: IndexerConfig, title: string, extras: string): string {

@@ -35,6 +35,7 @@ import { GroupPicker } from '@/components/library/groups/GroupPicker';
 import { useLibraryGroups } from '@/components/library/groups/useLibraryGroups';
 import { displayPath } from '@/components/library/groups/lib';
 import { SeriesMembershipControl } from './SeriesMembershipControl';
+import { serializeVisibleTermsPreservingBnf, visibleSearchTerms } from '@/lib/bnf-marker';
 
 const FormSchema = z.object({
   rootPath: z.string().min(1),
@@ -56,11 +57,7 @@ type Props = {
 };
 
 function parseExtraSearchTerms(json: string): string[] {
-  try {
-    return JSON.parse(json) as string[];
-  } catch {
-    return [];
-  }
+  return visibleSearchTerms(json);
 }
 
 export function SettingsTab({
@@ -99,7 +96,7 @@ export function SettingsTab({
           monitoring: v.monitoring,
           granularity: v.granularity,
           qualityProfileId: v.qualityProfileId,
-          extraSearchTermsJson: JSON.stringify(terms),
+          extraSearchTermsJson: serializeVisibleTermsPreservingBnf(series.extraSearchTermsJson, terms),
         }),
       });
       if (!res.ok) throw new Error(`save failed (${res.status})`);

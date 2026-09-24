@@ -33,9 +33,14 @@ export type LightNovelSheetHit = Omit<SearchHit, 'anilistId'> & {
   novelUpdatesSlug?: string | null;
 };
 
+export type ComicSheetHit = Omit<ComicSearchHit, 'comicvineId'> & {
+  comicvineId?: number | null;
+  bnfArk?: string | null;
+};
+
 export type AddSheetTarget =
   | { type: 'manga'; hit: MangaSheetHit }
-  | { type: 'comic'; hit: ComicSearchHit }
+  | { type: 'comic'; hit: ComicSheetHit }
   | { type: 'light_novel'; hit: LightNovelSheetHit }
   | { type: 'ebook'; hit: EbookHit }
   | { type: 'audiobook'; hit: AudiobookHit };
@@ -50,11 +55,6 @@ export type AddSheetTarget =
  * (null / 0). The sheets re-resolve full detail from the provider id, so the
  * defaults here only need to satisfy the type and seed the initial render.
  */
-function parseIdOr0(s: string): number {
-  const n = Number.parseInt(s, 10);
-  return Number.isNaN(n) ? 0 : n;
-}
-
 /** Like parseIdOr0 but null (never 0) on a non-numeric id — 0 would poison the add. */
 function parseIdOrNull(s: string): number | null {
   const n = Number.parseInt(s, 10);
@@ -110,17 +110,19 @@ export function toSheetHit(result: DiscoverResult): AddSheetTarget {
     }
 
     case 'comic': {
-      const comicvineId = result.sources?.comicvine ?? parseIdOr0(result.sourceId);
+      const bnfArk = result.sources?.bnf ?? (result.source === 'bnf' ? result.sourceId : null);
+      const comicvineId = result.sources?.comicvine ?? parseIdOrNull(result.sourceId);
       return {
         type: 'comic',
         hit: {
           comicvineId,
+          bnfArk,
           name: result.title,
           publisher: result.author ?? null,
           startYear: result.year ?? null,
           issueCount: null,
           coverUrl: result.coverUrl ?? null,
-          description: null,
+          description: result.description ?? null,
         },
       };
     }

@@ -22,6 +22,7 @@ import { googleBooksHydrateDescriptor } from '@/server/jobs/kinds/googlebooks-hy
 import { createSeriesFromMatch } from '@/server/importer/adopt';
 import { sanitizeForFs, kickHydrate, enqueueReleaseSearchOnAdd } from '@/server/importer/series-helpers';
 import type { Candidate } from '@/server/importer/match-candidate';
+import { withBnfArk } from '@/lib/bnf-marker';
 
 export const dynamic = 'force-dynamic';
 
@@ -182,10 +183,14 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   try {
     if (parsed.contentType === 'comic') {
+      if (parsed.comicvineId == null && parsed.bnfArk == null) {
+        return NextResponse.json({ error: 'comic requires comicvineId or bnfArk' }, { status: 400 });
+      }
+      const isBnf = parsed.bnfArk != null;
       const id = await insertSeries({
         contentType: 'comic',
         anilistId: null,
-        comicvineId: parsed.comicvineId,
+        comicvineId: parsed.comicvineId ?? null,
         publisher: parsed.publisher ?? null,
         startYear: parsed.startYear ?? null,
         titleEnglish: parsed.titleEnglish,
@@ -195,11 +200,17 @@ export async function POST(req: Request): Promise<NextResponse> {
         description: parsed.description ?? null,
         coverUrl: parsed.coverUrl ?? null,
         monitoring: parsed.monitoring,
-        granularity: 'chapter',
+        granularity: isBnf ? 'volume' : 'chapter',
+        extraSearchTermsJson: isBnf ? withBnfArk('[]', parsed.bnfArk!) : '[]',
         groupId: parsed.groupId ?? null,
       });
-      await enqueueJob('comicvine_hydrate', { seriesId: id });
-      kickHydrate(comicvineHydrateDescriptor);
+      if (isBnf) {
+        await enqueueJob('metadata_hydrate', { seriesId: id });
+        kickHydrate(metadataHydrateDescriptor);
+      } else {
+        await enqueueJob('comicvine_hydrate', { seriesId: id });
+        kickHydrate(comicvineHydrateDescriptor);
+      }
       await enqueueReleaseSearchOnAdd(id, parsed.monitoring);
       await recordCreate(id, parsed.titleEnglish);
       const row = await getSeries(id);

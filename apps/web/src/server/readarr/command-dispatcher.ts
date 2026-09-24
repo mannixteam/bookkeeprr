@@ -1,5 +1,6 @@
 import { enqueueJob } from '@/server/db/jobs';
 import { getSeries } from '@/server/db/series';
+import { extractBnfArk } from '@/lib/bnf-marker';
 import { getMediaRoot } from '@/server/content-type/paths';
 
 export type DispatchResult =
@@ -19,7 +20,10 @@ export async function dispatchReadarrCommand(
     if (!hasAuthorId) return { kind: 'noop', message: 'no authorId' };
     const series = await getSeries(authorId);
     if (series === null) return { kind: 'noop', message: 'no matching series' };
-    const jobKind = series.contentType === 'comic' ? 'comicvine_hydrate' : 'metadata_hydrate';
+    const jobKind =
+      series.contentType === 'comic' && extractBnfArk(series.extraSearchTermsJson) === null
+        ? 'comicvine_hydrate'
+        : 'metadata_hydrate';
     const jobId = await enqueueJob(jobKind, { seriesId: authorId });
     return { kind: 'enqueued', jobId, jobKind };
   }

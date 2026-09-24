@@ -48,10 +48,11 @@ export const MangaBody = z.object({
   groupId: GroupIdCreateField,
 });
 
-// Comic branch — requires comicvineId + titleEnglish; status defaults to 'releasing'
+// Comic branch — accepts ComicVine or the French BnF provider; titleEnglish is required.
 export const ComicBody = z.object({
   contentType: z.literal('comic'),
-  comicvineId: z.number().int(),
+  comicvineId: z.number().int().positive().optional(),
+  bnfArk: z.string().regex(/^ark:\/12148\/cb[0-9a-z]+$/i).optional(),
   publisher: z.string().optional(),
   startYear: z.number().int().optional(),
   titleEnglish: z.string(),

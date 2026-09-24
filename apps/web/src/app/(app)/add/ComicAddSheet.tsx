@@ -17,7 +17,8 @@ import {
 import { apiFetch } from '@/lib/api-fetch';
 
 type ComicSearchHit = {
-  comicvineId: number;
+  comicvineId?: number | null;
+  bnfArk?: string | null;
   name: string;
   publisher: string | null;
   startYear: number | null;
@@ -63,7 +64,7 @@ export function ComicAddSheet({ hit, onClose, groupId = null }: Props): React.JS
       if (effectiveQpId === null) throw new Error('no quality profile available');
       const body = {
         contentType: 'comic' as const,
-        comicvineId: hit.comicvineId,
+        ...(hit.bnfArk ? { bnfArk: hit.bnfArk } : { comicvineId: hit.comicvineId }),
         publisher: hit.publisher ?? undefined,
         startYear: hit.startYear ?? undefined,
         titleEnglish: hit.name,
@@ -99,7 +100,7 @@ export function ComicAddSheet({ hit, onClose, groupId = null }: Props): React.JS
         <div className="text-sm text-muted-foreground">
           {hit.publisher ?? '—'}
           {hit.startYear ? ` · ${hit.startYear}` : ''}
-          {hit.issueCount != null ? ` · ${hit.issueCount} issues` : ''}
+          {hit.issueCount != null ? ` · ${hit.issueCount} ${hit.bnfArk ? 'tomes' : 'issues'}` : ''}
         </div>
         <div className="space-y-2">
           <Label htmlFor="qp">Quality profile</Label>
