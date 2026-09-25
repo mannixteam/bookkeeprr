@@ -15,7 +15,7 @@ export class BnfError extends Error {
 
 export type BnfComicVolume = {
   ark: string;
-  number: number;
+  number: number | null;
   title: string;
   publisher: string | null;
   year: number | null;
@@ -225,7 +225,8 @@ function parseRecord(record: unknown): ParsedRecord | null {
 
   const title = [...titles].map(cleanTitle).filter(Boolean).sort((a, b) => a.length - b.length)[0]!;
   if (!title) return null;
-  const context = [...titles, ...descriptions, ...relations].join(' | ');
+  // A description may mention another album; it cannot identify this ordinal.
+  const context = titles.join(' | ');
   const tv = titleAndVolume(title, context);
   const publisher = canonicalPublisher(publishers[0] ?? null);
   const id = extractBookIdentifiers(ids);
@@ -338,31 +339,28 @@ function recordQuality(record: ParsedRecord): number {
   return (record.ean ? 8 : 0) + (record.isbn ? 4 : 0) + (record.description ? 2 : 0) + (record.year ?? 0) / 10000;
 }
 
-function chooseRecords(records: ParsedRecord[], preferredArk?: string): Array<{ record: ParsedRecord; number: number }> {
-  const hasNumbered = records.some((r) => r.rawNumber != null);
-  if (hasNumbered) {
-    const byNumber = new Map<number, ParsedRecord>();
-    for (const record of records) {
-      if (record.rawNumber == null) continue;
-      const current = byNumber.get(record.rawNumber);
-      if (!current || record.ark === preferredArk || (current.ark !== preferredArk && recordQuality(record) > recordQuality(current))) byNumber.set(record.rawNumber, record);
-    }
-    return [...byNumber.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([number, record]) => ({ record, number }));
-  }
-
-  // Named albums (classic Franco-Belgian series) often have several reissues in
-  // BnF. Keep one record per album title, then infer order from first publication year.
+function chooseRecords(records: ParsedRecord[], preferredArk?: string): Array<{ record: ParsedRecord; number: number | null }> {
+  const byNumber = new Map<number, ParsedRecord>();
   const byTitle = new Map<string, ParsedRecord>();
   for (const record of records) {
-    const key = norm(record.title);
-    const current = byTitle.get(key);
-    if (!current || record.ark === preferredArk || (current.ark !== preferredArk && recordQuality(record) > recordQuality(current))) byTitle.set(key, record);
+    if (record.rawNumber != null) {
+      const current = byNumber.get(record.rawNumber);
+      if (!current || record.ark === preferredArk || (current.ark !== preferredArk && recordQuality(record) > recordQuality(current))) byNumber.set(record.rawNumber, record);
+    } else {
+      // Keep named albums visible, including in groups with numbered volumes.
+      const key = norm(record.title);
+      const current = byTitle.get(key);
+      if (!current || record.ark === preferredArk || (current.ark !== preferredArk && recordQuality(record) > recordQuality(current))) byTitle.set(key, record);
+    }
   }
-  return [...byTitle.values()]
-    .sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.title.localeCompare(b.title))
-    .map((record, index) => ({ record, number: index + 1 }));
+  return [
+    ...[...byNumber.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([number, record]) => ({ record, number })),
+    ...[...byTitle.values()]
+      .sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.title.localeCompare(b.title))
+      .map(record => ({ record, number: null })),
+  ];
 }
 
 function finalizeGroup(records: ParsedRecord[], query: string, preferredArk?: string): BnfComicSeriesHit {
@@ -387,7 +385,8 @@ function finalizeGroup(records: ParsedRecord[], query: string, preferredArk?: st
     .map(({ record }) => record.year)
     .filter((v): v is number => v != null)
     .sort((a, b) => a - b)[0] ?? null;
-  const volumeCount = Math.max(volumes.length, ...volumes.map((v) => v.number));
+  // Observed album count is distinct from the highest known ordinal.
+  const volumeCount = volumes.length;
   const attribution = `Source des métadonnées et de la couverture : Bibliothèque nationale de France (consultée le ${new Date().toISOString().slice(0, 10)}).`;
   const description = canonical.description ? `${canonical.description}\n\n${attribution}` : attribution;
   return {

@@ -46,7 +46,8 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
         startYear: detail.startYear,
         coverUrl: detail.coverUrl,
         description: detail.description,
-        totalVolumes: detail.volumeCount,
+        // Unknown ordinals must not invent numbered slots or shrink known totals.
+        totalVolumes: Math.max(series.totalVolumes ?? 0, ...detail.volumes.map(v => v.number ?? 0)) || null,
         granularity: 'volume',
       });
 
@@ -54,6 +55,7 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
       const byNumber = new Map(existing.map((v) => [v.number, v]));
       let added = 0;
       for (const volume of detail.volumes) {
+        if (volume.number == null) continue;
         const metadataJson = JSON.stringify({
           source: 'bnf',
           bnfArk: volume.ark,
