@@ -20,6 +20,7 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Initial BnF French comics search and cover support exists in baseline.
 - [x] Normalize and validate BnF ISBN-10/ISBN-13/book EAN, and preserve the explicitly selected notice.
 - [x] Preserve unknown BnF ordinals and prevent unnumbered albums from creating numbered library rows.
+- [x] Require confirmed French language consistently in BnF search and direct-ARK hydration.
 - [ ] Harden the remaining BnF metadata behavior (outside the completed sessions).
 - [ ] Add reliable complementary metadata for recent French editions absent from BnF.
 - [ ] Harden series / volume / edition grouping.
@@ -29,6 +30,43 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the French-language eligibility NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `589dfb809eb44434f612af03850d29aabfc45487`.
+Session date: 2026-09-25 (Europe/Paris).
+
+### DONE: French-language eligibility
+- Preserve all declared `dc.language` values instead of inspecting only the first.
+- Apply one eligibility rule before series grouping/edition selection and before direct-ARK hydration.
+- Reject an ineligible seed with `BnfError` status 422 before fetching related notices or modifying library metadata.
+- Exclude foreign related volumes and foreign reissues from French series results.
+
+### Language policy (intentional conservative behavior)
+At least one nonempty language declaration is required, and every nonempty declaration must be recognized French.
+Accepted values: `fr`, `fre`, `fra`, `français`/`francais`, `French`, and `fr-XX`/`fr_XX` with a two-letter region. Matching ignores case, surrounding whitespace and accents.
+Repeated equivalent French declarations are accepted.
+Missing/empty language, unsupported values (including `und` and `mul`), and French/foreign bilingual declarations are excluded from both search and hydration.
+Do not infer French from title, ISBN prefix, publisher or BnF provenance. Unknown-language notices remain excluded until metadata supplies confirmation; this can omit genuine French books with incomplete notices.
+This policy applies to the BnF integration, not other providers.
+
+### Exact verification: French language
+New tests before fixes: **20 failed, 8 passed (28 total)**, two files.
+All 28 are now passing. Exact parameterized cases:
+- `accepts confirmed French in search and direct hydration: %s`: `fr`, `fre`, `FRA`, ` français `, `French`, `fr-FR`, `fr_CA` (7 passed before/after).
+- `rejects in search: %s` and `rejects direct hydration before fetching related notices: %s`: English, Portuguese, non-French label, missing, empty, undetermined, multiple unspecified, French then English, English then French (18 FAILED BEFORE).
+- `filters foreign reissues before choosing an edition and excludes foreign related volumes` (FAILED BEFORE).
+- `accepts repeated equivalent French declarations` (passed before/after).
+- `does not modify the library when a BnF notice is not confirmed French` (FAILED BEFORE).
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **56 passed, 0 failed**, seven files (28 new tests plus the previous 28 regression tests).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS.
+Tests use mocked SRU responses; the library preservation test uses a temporary SQLite database and compares the complete series/volume records before and after rejection.
+No full regression suite, CI validation, live-provider validation, Docker build or VM deployment was performed in this session.
+
+## PREVIOUS SESSION: unnumbered albums
 Completed the unnumbered-albums NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `6f2a27d19fcc053b7cce7ed9c3076489179f1e9a`.
 Session date: 2026-09-25 (Europe/Paris).
@@ -117,6 +155,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 
 ## DO NOT REDO
 - Do not recreate the initial BnF integration from scratch.
+- Do not re-audit the verified French-language filtering or relax the documented missing-language policy without a new requirement or failing case.
 - Do not reintroduce inferred ordinals or repeat the completed unnumbered-album investigation without a new failing case.
 - Do not re-audit or reimplement the completed ISBN/check-digit/EAN extraction and selected-ARK fixes above without a new failing case.
 - Do not import unrelated release-branch changes or repeat the full repository audit.
@@ -128,7 +167,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Harden French-language eligibility in BnF search and direct-ARK hydration: add focused tests for explicitly non-French notices, apply consistent rejection in both entry points, document the handling of missing language metadata, run relevant tests, commit the verified result, update this checkpoint with one next action, and stop.
+Implement bounded BnF SRU pagination so search can retrieve notices beyond the first page: add focused tests for multiple pages, repeated/non-advancing cursors, duplicate ARKs and a later-page failure; retain already verified results on a later-page failure, keep an explicit page/time bound, run relevant tests, commit, update this checkpoint with one next action, and stop.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
