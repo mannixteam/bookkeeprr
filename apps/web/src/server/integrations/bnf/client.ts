@@ -484,7 +484,8 @@ function groupRecords(records: ParsedRecord[], query: string): BnfComicSeriesHit
       if (records.some((r) => r.comicLike)) score += 35;
       if (publisherLooksComic(hit.publisher)) score += 25;
       if (french) score += 10;
-      score += Math.min(hit.volumeCount, 20) * 4;
+      // Title relevance must outrank the size of a spin-off collection.
+      score += Math.min(hit.volumeCount, 20);
       return { hit, score };
     })
     .filter(({ score }) => score >= 45)

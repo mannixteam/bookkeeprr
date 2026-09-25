@@ -51,6 +51,13 @@ describe('French catalogue', () => {
     await expect(getFrenchComicSeries('ark:/12148/cb12345678x')).rejects.toThrow('not a French comic');
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+  it('ranks an exact series title above a larger related collection', async () => {
+    const collection = Array.from({ length: 20 }, (_, i) => record(`Astérix la grande galerie. Tome ${i + 1}`).replaceAll('cb12345678x', `cb98765${i}x`)).join('');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(xml(record('Astérix. Tome 1') + collection)));
+    const hits = await searchFrenchComicSeries('Astérix');
+    expect(hits[0]?.name).toBe('Astérix');
+    expect(hits[1]?.volumes).toHaveLength(20);
+  });
   it('searches ISBN using the ISBN index', async () => {
     const fetcher = vi.fn().mockResolvedValue(xml(record())); vi.stubGlobal('fetch', fetcher);
     await searchFrenchComicSeries('9782723488525');
