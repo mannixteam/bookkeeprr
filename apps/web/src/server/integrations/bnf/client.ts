@@ -232,11 +232,17 @@ function unimarcRecord(raw: Record<string, unknown>): ParsedRecord | null {
   const parentNumber = parent ? ordinal(values(parent, 'v')[0]) : null;
   const ownBase = [main, ...qualifiers].filter(Boolean).join(' : ');
   const title = [ownBase, part, ...values(titleField, 'i')].filter(Boolean).join('. ');
+  const genres = all(['608'], 'a');
+  const classifications = tagged('686').filter(f => values(f, '2').some(v => v.includes('Bibliographie nationale française'))).flatMap(f => values(f, 'a'));
+  const classifiedComic = classifications.includes('805');
+  // Explicit games/music or prose novels are not comics merely because the
+  // publisher also publishes BD. Graphic novels remain eligible.
+  if (!classifiedComic && (classifications.some(v => ['793', '182'].includes(v)) || genres.some(v => /^romans?(?: |$)/.test(norm(v)) && !/graphique/.test(norm(v))))) return null;
   const result = parseRecord({ dc: {
     identifier: [String(raw['@_id'] ?? ''), ...all(['010', '073'], 'a')], title,
     publisher: all(['214', '210'], 'c'), date: all(['214', '210'], 'd'),
     language: all(['101'], 'a'), description: all(['330'], 'a'),
-    subject: all(['606', '608', '610'], 'a', 'x'),
+    subject: [...all(['606', '608', '610'], 'a', 'x'), ...(classifiedComic ? ['Bande dessinée'] : [])],
     creator: tagged('700', '701', '702', '710', '711', '712').map(f => values(f, 'a', 'b').join(', ')),
   } });
   if (!result) return null;
@@ -284,7 +290,7 @@ function parseRecord(record: unknown): ParsedRecord | null {
   const language = langs[0] ?? null;
   const comicHaystack = norm([...subjects, ...descriptions, ...types, publisher ?? ''].join(' '));
   const comicLike =
-    /bande dessinee|comic|roman graphique|graphic novel|manga/.test(comicHaystack) ||
+    /bandes? dessinees?|comic|roman graphique|graphic novel|manga/.test(comicHaystack) ||
     publisherLooksComic(publisher);
 
   return {

@@ -17,7 +17,7 @@ it('groups named albums by their UNIMARC parent and explicit ordinal', async () 
   const origins = hits.find(h => h.name.toLowerCase() === 'les légendaires, origines' && h.publisher === 'Delcourt');
   expect(origins?.volumes.map(v => v.number)).toEqual([1, 2]);
   expect(hits.find(h => h.name.toLowerCase() === 'les légendaires : saga')?.volumes[0]?.number).toBe(1);
-  expect(main?.volumes.every(v => v.number != null)).toBe(true);
+  expect(hits.find(h => h.publisher?.includes('France loisirs'))?.volumes[0]?.number).toBeNull();
   expect(new URL(fetcher.mock.calls[0]![0] as string).searchParams.get('recordSchema')).toBe('unimarcXchange');
 });
 it('paginates recent French editions and keeps earlier pages on later errors', async () => {
@@ -48,4 +48,17 @@ it('stops pagination when a provider repeats its page', async () => {
   }));
   expect((await searchFrenchCatalog('Nouvelle BD'))[0]?.volumes).toHaveLength(1);
   expect(calls).toBe(2);
+});
+
+it('rejects explicitly classified games even from a comics publisher', async () => {
+  const game = fixture.replaceAll('>805<', '>793<').replaceAll('>809<', '>793<');
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(game)));
+  expect(await searchFrenchComicSeries('Les Légendaires')).toEqual([]);
+});
+it('keeps a separately declared deluxe edition out of the regular series', async () => {
+  const deluxe = fixture.replaceAll('<ns1:datafield tag="200"', '<ns1:datafield tag="205"><ns1:subfield code="a">Édition de luxe</ns1:subfield></ns1:datafield><ns1:datafield tag="200"');
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(deluxe)));
+  const hits = await searchFrenchComicSeries('Les Légendaires');
+  expect(hits.length).toBeGreaterThan(0);
+  expect(hits.every(h => h.name.includes('Édition de luxe'))).toBe(true);
 });
