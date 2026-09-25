@@ -48,7 +48,7 @@ type ParsedRecord = {
   ean: string | null;
   description: string | null;
   creators: string[];
-  language: string | null;
+  languages: string[];
   comicLike: boolean;
   relations: string[];
 };
@@ -231,7 +231,6 @@ function parseRecord(record: unknown): ParsedRecord | null {
   const publisher = canonicalPublisher(publishers[0] ?? null);
   const id = extractBookIdentifiers(ids);
   const description = descriptions[0] ?? null;
-  const language = langs[0] ?? null;
   const comicHaystack = norm([...subjects, ...descriptions, ...types, publisher ?? ''].join(' '));
   const comicLike =
     /bande dessinee|comic|roman graphique|graphic novel|manga/.test(comicHaystack) ||
@@ -248,7 +247,7 @@ function parseRecord(record: unknown): ParsedRecord | null {
     ean: id.ean,
     description,
     creators: [...new Set(creators)],
-    language,
+    languages: langs,
     comicLike,
     relations,
   };
@@ -401,9 +400,21 @@ function finalizeGroup(records: ParsedRecord[], query: string, preferredArk?: st
   };
 }
 
+/** French-only catalog policy: every declared content language must be French.
+ * Missing, indeterminate, unsupported and bilingual declarations are not proof
+ * of a French-only edition. Never infer language from the publisher or title.
+ */
+function isConfirmedFrench(record: ParsedRecord): boolean {
+  return record.languages.length > 0 && record.languages.every(raw => {
+    const value = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    return ['fr', 'fre', 'fra', 'francais', 'french'].includes(value) || /^fr[-_][a-z]{2}$/.test(value);
+  });
+}
+
 function groupRecords(records: ParsedRecord[], query: string, preferredArk?: string): BnfComicSeriesHit[] {
   const groups = new Map<string, ParsedRecord[]>();
   for (const record of records) {
+    if (!isConfirmedFrench(record)) continue;
     if (!record.comicLike && !publisherLooksComic(record.publisher)) continue;
     const title = groupTitle(record, query);
     if (!norm(title)) continue;
@@ -418,7 +429,7 @@ function groupRecords(records: ParsedRecord[], query: string, preferredArk?: str
     .map((records) => {
       const hit = finalizeGroup(records, query, preferredArk);
       const title = norm(hit.name);
-      const french = records.some((r) => /^(fre|fr|fra)\b|francais/i.test(norm(r.language)));
+      const french = records.some(isConfirmedFrench);
       let score = 0;
       if (title === q) score += 100;
       else if (title.startsWith(q) || q.startsWith(title)) score += 60;
@@ -452,6 +463,7 @@ export async function getFrenchComicSeries(
   const seedRecords = await sru(`bib.persistentid any "${escapeCql(seedArk)}"`, 5);
   const seed = seedRecords.find((r) => r.ark.toLowerCase() === seedArk.toLowerCase());
   if (!seed) throw new BnfError(`BnF record not found: ${seedArk}`, 404);
+  if (!isConfirmedFrench(seed)) throw new BnfError('BnF notice excluded: French-only language not confirmed', 422);
 
   const query = preferredTitle?.trim() || seed.baseTitle;
   const related = await sru(`(bib.title all "${escapeCql(query)}") and (bib.recordtype any "mon")`);
