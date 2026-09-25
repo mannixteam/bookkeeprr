@@ -53,6 +53,7 @@ type ParsedRecord = {
   comicLike: boolean;
   manga: boolean;
   relations: string[];
+  structuredSeries?: string | null;
 };
 
 const parser = new XMLParser({
@@ -91,6 +92,7 @@ function norm(value: string | null | undefined): string {
 
 function cleanTitle(raw: string): string {
   return raw
+    .replace(/[\u0088\u0089]/g, '')
     .replace(/^\[[^\]]+\]\s*/, '')
     .replace(/\[(?:texte|image)[^\]]*\]/gi, ' ')
     .split(/\s+\/\s+/)[0]!
@@ -204,10 +206,56 @@ function publisherLooksComic(publisher: string | null): boolean {
   return KNOWN_PUBLISHERS.some(([pattern]) => pattern.test(publisher ?? ''));
 }
 
+/** UNIMARC preserves series links/ordinals omitted by the Dublin Core export.
+ * 200$a/e/h/i: title/qualifier/part/title of part; 461/462$t/v: parent/ordinal.
+ * Keep the DC reader for archived fixtures and interoperable SRU responses.
+ */
+function unimarcRecord(raw: Record<string, unknown>): ParsedRecord | null {
+  const fields = arr(raw.datafield).filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
+  const tagged = (...tags: string[]) => fields.filter(f => tags.includes(String(f['@_tag'])));
+  const values = (f: Record<string, unknown>, ...codes: string[]) => arr(f.subfield)
+    .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
+    .filter(v => codes.includes(String(v['@_code']))).map(scalar).filter((v): v is string => !!v);
+  const all = (tags: string[], ...codes: string[]) => tagged(...tags).flatMap(f => values(f, ...codes));
+  const titleField = tagged('200')[0];
+  if (!titleField) return null;
+  const main = values(titleField, 'a').join(' ');
+  const qualifiers = values(titleField, 'e');
+  const part = values(titleField, 'h')[0];
+  const ordinal = (v?: string) => {
+    const m = /^(?:(?:tome|t\.?|vol(?:ume)?\.?)\s*)?0*(\d{1,3})$/i.exec(v?.trim() ?? '');
+    return m && Number(m[1]) > 0 ? Number(m[1]) : null;
+  };
+  const number = ordinal(part);
+  const parent = tagged('461', '462').find(f => values(f, 't').length);
+  const series = parent ? values(parent, 't')[0]! : null;
+  const parentNumber = parent ? ordinal(values(parent, 'v')[0]) : null;
+  const ownBase = [main, ...qualifiers].filter(Boolean).join(' : ');
+  const title = [ownBase, part, ...values(titleField, 'i')].filter(Boolean).join('. ');
+  const result = parseRecord({ dc: {
+    identifier: [String(raw['@_id'] ?? ''), ...all(['010', '073'], 'a')], title,
+    publisher: all(['214', '210'], 'c'), date: all(['214', '210'], 'd'),
+    language: all(['101'], 'a'), description: all(['330'], 'a'),
+    subject: all(['606', '608', '610'], 'a', 'x'),
+    creator: tagged('700', '701', '702', '710', '711', '712').map(f => values(f, 'a', 'b').join(', ')),
+  } });
+  if (!result) return null;
+  result.rawNumber = number ?? parentNumber ?? result.rawNumber;
+  // A title's own numbered part keeps qualifiers such as Saga/Origines.
+  // Named albums use the bibliographic parent, never a broad publisher collection.
+  result.structuredSeries = number != null ? ownBase : series;
+  const editions = all(['205'], 'a').filter(v => /integrale|deluxe|luxe|collector|omnibus|perfect|coffret/i.test(norm(v)));
+  if (editions.length) result.structuredSeries = `${result.structuredSeries ?? result.baseTitle} (${editions.join(' ; ')})`;
+  if (result.structuredSeries) result.structuredSeries = cleanTitle(result.structuredSeries);
+  return result;
+}
+
 function parseRecord(record: unknown): ParsedRecord | null {
   if (!record || typeof record !== 'object') return null;
   const rec = record as Record<string, unknown>;
   const recordData = (rec.recordData ?? rec) as Record<string, unknown>;
+  const marc = recordData.record as Record<string, unknown> | undefined;
+  if (marc?.datafield) return unimarcRecord(marc);
   const dc = (recordData.dc ?? recordData) as Record<string, unknown>;
   const titles = strings(dc.title);
   if (titles.length === 0) return null;
@@ -276,7 +324,7 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
   for (let page = 0; page < 5; page++) {
     const url = new URL(SRU_BASE);
     url.search = new URLSearchParams({ version: '1.2', operation: 'searchRetrieve', query: cql,
-      recordSchema: 'dublincore', maximumRecords: String(maximumRecords), startRecord: String(start) }).toString();
+      recordSchema: 'unimarcXchange', maximumRecords: String(maximumRecords), startRecord: String(start) }).toString();
     try {
     const res = await fetch(url, { headers: { accept: 'application/xml,text/xml' }, signal });
     if (!res.ok) throw new BnfError(`BnF SRU HTTP ${res.status}`, res.status);
@@ -322,6 +370,7 @@ function bestRelationForQuery(record: ParsedRecord, query: string): string | nul
 }
 
 function groupTitle(record: ParsedRecord, query: string): string {
+  if (record.structuredSeries) return record.structuredSeries;
   if (record.rawNumber != null && norm(record.baseTitle) !== norm(record.title)) return record.baseTitle;
   return bestRelationForQuery(record, query) ?? record.baseTitle;
 }
@@ -453,8 +502,8 @@ export async function getFrenchComicSeries(
   const seed = seedRecords.find((r) => r.ark.toLowerCase() === seedArk.toLowerCase());
   if (!seed) throw new BnfError(`BnF record not found: ${seedArk}`, 404);
 
-  const query = preferredTitle?.trim() || seed.baseTitle;
-  const related = await sru(`(bib.title all "${escapeCql(query)}") and (bib.recordtype any "mon")`);
+  const query = preferredTitle?.trim() || seed.structuredSeries || seed.baseTitle;
+  const related = await sru(`(bib.title all "${escapeCql(query)}") and (bib.recordtype any "mon")`).catch(() => []);
   const all = [...new Map([seed, ...related].map((r) => [r.ark, r])).values()];
   const hits = groupRecords(all, query);
   // Reissues can replace the seed in chooseRecords. Match its group, never an unrelated first hit.

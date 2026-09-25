@@ -3,7 +3,7 @@ import { searchFrenchComicSeries, getFrenchComicSeries, canonicalPublisher, type
 import { bookEan, extractBookIdentifiers } from '../bnf/identifiers';
 import { frenchCoverUrl, mergeFrenchSeries, normalized, volumeTitle, type FrenchSeries } from './model';
 
-const ResponseSchema = z.object({ items: z.array(z.object({ id: z.string().regex(/^[\w-]+$/), volumeInfo: z.object({
+const ResponseSchema = z.object({ totalItems: z.number().optional(), items: z.array(z.object({ id: z.string().regex(/^[\w-]+$/), volumeInfo: z.object({
   title: z.string(), subtitle: z.string().optional(), language: z.string().optional(),
   publisher: z.string().optional(), publishedDate: z.string().optional(),
   description: z.string().optional(), authors: z.array(z.string()).optional(),
@@ -18,11 +18,23 @@ async function googleFrench(query: string, apiKey = ''): Promise<FrenchSeries[]>
   url.searchParams.set('maxResults', '40');
   url.searchParams.set('printType', 'books');
   if (apiKey) url.searchParams.set('key', apiKey);
-  const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!response.ok) throw new Error(`Google Books français HTTP ${response.status}`);
-  const data = ResponseSchema.parse(await response.json());
   const out: FrenchSeries[] = [];
-  for (const { id, volumeInfo: v } of data.items ?? []) {
+  const seen = new Set<string>();
+  const signal = AbortSignal.timeout(12_000);
+  // Bounded pagination also supports long-running manga. Preserve earlier pages
+  // if a later request is unavailable, and stop APIs that repeat the first page.
+  for (let page = 0; page < 5; page++) {
+    url.searchParams.set('startIndex', String(page * 40));
+    let data: z.infer<typeof ResponseSchema>;
+    try {
+      const response = await fetch(url, { signal });
+      if (!response.ok) throw new Error(`Google Books français HTTP ${response.status}`);
+      data = ResponseSchema.parse(await response.json());
+    } catch (error) { if (page > 0) break; throw error; }
+    const fresh = (data.items ?? []).filter(item => !seen.has(item.id));
+    if (!fresh.length) break;
+    for (const { id, volumeInfo: v } of fresh) {
+    seen.add(id);
     if (v.language !== 'fr') continue;
     // A French language code alone does not make a novel a comic.
     const categories = (v.categories ?? []).join(' ');
@@ -39,6 +51,8 @@ async function googleFrench(query: string, apiKey = ''): Promise<FrenchSeries[]>
       volumes: [{ ark: null, googleId: id, number: parsed.number, title: fullTitle, publisher: canonicalPublisher(v.publisher ?? null),
         year: year ? Number(year[1]) : null, isbn, ean, coverUrl, description: v.description ?? null, creators: v.authors ?? [] }],
     });
+    }
+    if (!data.totalItems || (page + 1) * 40 >= data.totalItems || query.startsWith('isbn:')) break;
   }
   return mergeFrenchSeries([], out);
 }

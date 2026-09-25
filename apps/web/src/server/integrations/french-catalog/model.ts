@@ -45,7 +45,7 @@ export function mergeFrenchSeries(primary: FrenchSeries[], supplements: FrenchSe
   const out = primary.map(s => ({ ...s, volumes: s.volumes.map(v => ({ ...v })) }));
   for (const other of supplements) {
     const match = out.find(s => s.publisher && other.publisher && normalized(s.name) === normalized(other.name) && normalized(s.publisher) === normalized(other.publisher));
-    if (!match) { out.push({ ...other, volumes: [...other.volumes] }); continue; }
+    if (!match) { out.push({ ...other, volumes: other.volumes.map(v => ({ ...v })) }); continue; }
     for (const volume of other.volumes) {
       const same = match.volumes.find(v => (v.ean && v.ean === volume.ean) || (v.number != null && v.number === volume.number));
       if (same) {
@@ -53,10 +53,12 @@ export function mergeFrenchSeries(primary: FrenchSeries[], supplements: FrenchSe
           same.googleId = volume.googleId;
           same.coverUrl = frenchCoverUrl(same.ean, same.ark, same.googleId);
         }
-      } else match.volumes.push(volume);
+      } else match.volumes.push({ ...volume });
     }
     match.volumes.sort((a,b) => (a.number ?? Infinity) - (b.number ?? Infinity) || a.title.localeCompare(b.title, 'fr'));
-    match.volumeCount = match.volumes.length;
+    match.volumeCount = Math.max(match.volumeCount, other.volumeCount, match.volumes.length);
+    const years = [match.startYear, other.startYear].filter((y): y is number => y != null);
+    match.startYear = years.length ? Math.min(...years) : null;
     match.coverUrl = match.volumes[0]?.coverUrl ?? match.coverUrl;
   }
   return out;

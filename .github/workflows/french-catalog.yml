@@ -1,12 +1,16 @@
 name: French catalog regression
 on:
   push:
-    branches: [feature/french-catalog-reliability]
+    branches: [feature/french-catalog-reliability, feature/french-catalog-release-validation]
   pull_request:
     paths:
       - 'apps/web/src/**'
       - 'apps/web/tests/**'
       - 'apps/web/scripts/french-catalog-live.ts'
+      - 'apps/web/package.json'
+      - 'apps/web/Dockerfile'
+      - 'pnpm-lock.yaml'
+      - 'packages/**'
       - 'apps/website/public/openapi.json'
       - 'compose.fr-test.yaml'
       - 'apps/web/src/server/discover/merge.ts'

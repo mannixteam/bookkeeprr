@@ -1,6 +1,6 @@
 # Test isolé du catalogue français sur Debian / Docker
 
-Branche : `feature/french-catalog-reliability`, issue de `feature/french-comics-bnf`.
+Branche : `feature/french-catalog-release-validation`, issue de `feature/french-comics-bnf`.
 Le fichier `compose.fr-test.yaml` utilise le projet Docker `bookkeeprr-fr-test`,
 le port 3004 et deux volumes neufs. La stack existante et sa base ne sont pas
 utilisées. Aucun montage du dossier de livres existant n'est effectué.
@@ -12,7 +12,7 @@ Le compte doit pouvoir lancer Docker (sinon préfixer les commandes Docker par `
 Utiliser le commit validé indiqué dans le compte rendu de livraison :
 
 ```bash
-git clone --single-branch --branch feature/french-catalog-reliability https://github.com/mannixteam/bookkeeprr.git "$HOME/bookkeeprr-fr-test"
+git clone --single-branch --branch feature/french-catalog-release-validation https://github.com/mannixteam/bookkeeprr.git "$HOME/bookkeeprr-fr-test"
 cd "$HOME/bookkeeprr-fr-test"
 git checkout --detach COMMIT_VALIDE
 export BOOKKEEPRR_TEST_COMMIT="$(git rev-parse HEAD)"
@@ -43,6 +43,16 @@ L'instance habituelle reste accessible sur son port actuel.
 
 Ne pas connecter cette instance de test au client de téléchargement de production
 pendant ce premier essai. Sa bibliothèque `/media` est vide et indépendante.
+
+## Fiabilisation du 25 septembre 2026
+
+- Lecture UNIMARC BnF : titres, liens de séries et numéros explicites, avec
+  régressions sur des notices réelles des Légendaires, Origines et Saga.
+- Google Books : jusqu’à cinq pages de 40 résultats, dans une limite de 12 secondes ;
+  les pages déjà reçues restent utilisables en cas de quota ou de panne.
+- Les informations BnF restent prioritaires et les séries dérivées restent séparées.
+- En cas de panne de recherche des autres tomes, une notice BnF déjà vérifiée
+  peut être conservée, sans prétendre que sa série est complète.
 
 ## Limites explicites
 

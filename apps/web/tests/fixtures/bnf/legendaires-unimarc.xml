@@ -1,0 +1,1023 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ns0:searchRetrieveResponse xmlns:ns0="http://www.loc.gov/zing/srw/" xmlns:ns1="info:lc/xmlns/marcxchange-v2" xmlns:ns2="http://catalogue.bnf.fr/namespaces/InterXMarc" xmlns:ns3="http://catalogue.bnf.fr/namespaces/motsnotices">
+<ns0:version>1.2</ns0:version>
+<ns0:echoedSearchRetrieveRequest>
+<ns0:version>1.2</ns0:version>
+<ns0:query>bib.title all "Les Legendaires"</ns0:query>
+</ns0:echoedSearchRetrieveRequest>
+<ns0:numberOfRecords>7</ns0:numberOfRecords>
+<ns0:records>
+<ns0:record>
+<ns0:recordSchema>marcxchange</ns0:recordSchema>
+<ns0:recordPacking>xml</ns0:recordPacking>
+<ns0:recordData>
+<ns1:record format="UNIMARC" id="ark:/12148/cb43660244b" type="Bibliographic">
+<ns1:leader>     cam  22        450 </ns1:leader>
+<ns1:controlfield tag="001">FRBNF436602440000003</ns1:controlfield>
+<ns1:controlfield tag="003">http://catalogue.bnf.fr/ark:/12148/cb43660244b</ns1:controlfield>
+<ns1:datafield tag="010" ind1=" " ind2=" ">
+<ns1:subfield code="a">978-2-298-06804-7</ns1:subfield>
+<ns1:subfield code="b">rel.</ns1:subfield>
+<ns1:subfield code="d">9,50 EUR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="020" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">01352711</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="073" ind1=" " ind2="0">
+<ns1:subfield code="a">9782298068047</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="100" ind1=" " ind2=" ">
+<ns1:subfield code="a">20130829d2013    a  y0frey50      ba</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="101" ind1="0" ind2=" ">
+<ns1:subfield code="a">fre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="102" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="105" ind1=" " ind2=" ">
+<ns1:subfield code="a">||||t   00|a|</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="106" ind1=" " ind2=" ">
+<ns1:subfield code="a">r</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">i </ns1:subfield>
+<ns1:subfield code="b">xxxe  </ns1:subfield>
+<ns1:subfield code="a">b </ns1:subfield>
+<ns1:subfield code="b">xb2e  </ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">txt</ns1:subfield>
+<ns1:subfield code="c">sti</ns1:subfield>
+<ns1:subfield code="2">rdacontent</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">n</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">n</ns1:subfield>
+<ns1:subfield code="2">rdamedia</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="200" ind1="1" ind2=" ">
+<ns1:subfield code="a">Danaël</ns1:subfield>
+<ns1:subfield code="b">Texte imprimé</ns1:subfield>
+<ns1:subfield code="f">Sobral, Nadou</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="210" ind1=" " ind2=" ">
+<ns1:subfield code="a">Paris</ns1:subfield>
+<ns1:subfield code="c">Éd. France loisirs</ns1:subfield>
+<ns1:subfield code="d">DL 2013</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="215" ind1=" " ind2=" ">
+<ns1:subfield code="a">1 vol. (47 p.)</ns1:subfield>
+<ns1:subfield code="c">ill. en coul., couv. ill. en coul.</ns1:subfield>
+<ns1:subfield code="d">30 cm</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="225" ind1="1" ind2="9">
+<ns1:subfield code="a">Les légendaires, origines</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="461" ind1=" " ind2="0">
+<ns1:subfield code="0">43678807</ns1:subfield>
+<ns1:subfield code="t">Les légendaires, origines</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="686" ind1=" " ind2=" ">
+<ns1:subfield code="a">805</ns1:subfield>
+<ns1:subfield code="2">Cadre de classement de la Bibliographie nationale française</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="700" ind1=" " ind2="|">
+<ns1:subfield code="3">14570991</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000365480554</ns1:subfield>
+<ns1:subfield code="a">Sobral</ns1:subfield>
+<ns1:subfield code="b">Patrick</ns1:subfield>
+<ns1:subfield code="f">1972-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="701" ind1=" " ind2="|">
+<ns1:subfield code="3">16602484</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000371235600</ns1:subfield>
+<ns1:subfield code="a">Nadou</ns1:subfield>
+<ns1:subfield code="f">1988-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="801" ind1=" " ind2="0">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">FR-751131015</ns1:subfield>
+<ns1:subfield code="c">20130829</ns1:subfield>
+<ns1:subfield code="g">AFNOR</ns1:subfield>
+<ns1:subfield code="h">FRBNF436602440000003</ns1:subfield>
+<ns1:subfield code="2">intermrc</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:43660244001001</ns1:subfield>
+<ns1:subfield code="a">2013-318391</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Rez de Jardin - Littérature et art - Magasin</ns1:subfield>
+<ns1:subfield code="d">O</ns1:subfield>
+</ns1:datafield>
+</ns1:record>      </ns0:recordData>
+<ns0:recordIdentifier>ark:/12148/cb43660244b</ns0:recordIdentifier>
+<ns0:recordPosition>4</ns0:recordPosition>
+<ns0:extraRecordData>
+<ns2:attr name="CreationDate">20130829</ns2:attr>
+<ns2:attr name="LastModificationDate">20131010</ns2:attr>
+<ns3:score>9.255136</ns3:score>
+</ns0:extraRecordData>
+</ns0:record>
+<ns0:record>
+<ns0:recordSchema>marcxchange</ns0:recordSchema>
+<ns0:recordPacking>xml</ns0:recordPacking>
+<ns0:recordData>
+<ns1:record format="UNIMARC" id="ark:/12148/cb392809630" type="Bibliographic">
+<ns1:leader>     cam  22        450 </ns1:leader>
+<ns1:controlfield tag="001">FRBNF392809630000003</ns1:controlfield>
+<ns1:controlfield tag="003">http://catalogue.bnf.fr/ark:/12148/cb392809630</ns1:controlfield>
+<ns1:datafield tag="010" ind1=" " ind2=" ">
+<ns1:subfield code="a">2-84789-477-2</ns1:subfield>
+<ns1:subfield code="b">rel.</ns1:subfield>
+<ns1:subfield code="d">9,45 EUR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="010" ind1=" " ind2=" ">
+<ns1:subfield code="a">978-2-413-08038-1</ns1:subfield>
+<ns1:subfield code="b">réimpr. 2023</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="020" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">00452689</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="073" ind1=" " ind2="0">
+<ns1:subfield code="a">9782847894776</ns1:subfield>
+<ns1:subfield code="2">ALS</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="073" ind1=" " ind2="0">
+<ns1:subfield code="a">9782413080381</ns1:subfield>
+<ns1:subfield code="b">réimpr. 2023</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="100" ind1=" " ind2=" ">
+<ns1:subfield code="a">20041119d2004    a  y0frey50      ba</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="101" ind1="0" ind2=" ">
+<ns1:subfield code="a">fre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="102" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="105" ind1=" " ind2=" ">
+<ns1:subfield code="a">||||t   00|a|</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="106" ind1=" " ind2=" ">
+<ns1:subfield code="a">r</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">i </ns1:subfield>
+<ns1:subfield code="b">xxxe  </ns1:subfield>
+<ns1:subfield code="a">b </ns1:subfield>
+<ns1:subfield code="b">xb2e  </ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">txt</ns1:subfield>
+<ns1:subfield code="c">sti</ns1:subfield>
+<ns1:subfield code="2">rdacontent</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">n</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">n</ns1:subfield>
+<ns1:subfield code="2">rdamedia</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="200" ind1="1" ind2=" ">
+<ns1:subfield code="a">Le gardien</ns1:subfield>
+<ns1:subfield code="b">Texte imprimé</ns1:subfield>
+<ns1:subfield code="f">Patrick Sobral</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="210" ind1=" " ind2=" ">
+<ns1:subfield code="a">[Paris]</ns1:subfield>
+<ns1:subfield code="c">Delcourt</ns1:subfield>
+<ns1:subfield code="d">2004</ns1:subfield>
+<ns1:subfield code="e">45-Malesherbes</ns1:subfield>
+<ns1:subfield code="g">Impr. Partenaires livres</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="215" ind1=" " ind2=" ">
+<ns1:subfield code="a">47 p.</ns1:subfield>
+<ns1:subfield code="c">ill. en coul., couv. ill. en coul.</ns1:subfield>
+<ns1:subfield code="d">30 cm</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="225" ind1="1" ind2="9">
+<ns1:subfield code="a">Les légendaires</ns1:subfield>
+<ns1:subfield code="v">2</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="330" ind1=" " ind2=" ">
+<ns1:subfield code="a">Les légendaires, cinq justiciers aux pouvoirs surnaturels redevenus enfants après un combat contre les forces du mal, découvrent que leur ami Elysio est en fait le sorcier Darkhell, ce qu'il prétend avoir oublié. Ils tentent d'empêcher des hommes-plantes, les Zar-ikos, de lui faire recouvrer la mémoire.</ns1:subfield>
+<ns1:subfield code="2">Electre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="461" ind1=" " ind2="0">
+<ns1:subfield code="0">39246454</ns1:subfield>
+<ns1:subfield code="t">Les légendaires</ns1:subfield>
+<ns1:subfield code="v">2</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="676" ind1=" " ind2=" ">
+<ns1:subfield code="a">741.508 3</ns1:subfield>
+<ns1:subfield code="v">23</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="686" ind1=" " ind2=" ">
+<ns1:subfield code="a">809</ns1:subfield>
+<ns1:subfield code="2">Cadre de classement de la Bibliographie nationale française</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="700" ind1=" " ind2="|">
+<ns1:subfield code="3">14570991</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000365480554</ns1:subfield>
+<ns1:subfield code="a">Sobral</ns1:subfield>
+<ns1:subfield code="b">Patrick</ns1:subfield>
+<ns1:subfield code="f">1972-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="801" ind1=" " ind2="0">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">FR-751131015</ns1:subfield>
+<ns1:subfield code="c">20041119</ns1:subfield>
+<ns1:subfield code="g">AFNOR</ns1:subfield>
+<ns1:subfield code="h">FRBNF392809630000003</ns1:subfield>
+<ns1:subfield code="2">intermrc</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:39280963001001</ns1:subfield>
+<ns1:subfield code="a">2004-275866</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Rez de Jardin - Littérature et art - Magasin</ns1:subfield>
+<ns1:subfield code="d">O</ns1:subfield>
+</ns1:datafield>
+</ns1:record>      </ns0:recordData>
+<ns0:recordIdentifier>ark:/12148/cb392809630</ns0:recordIdentifier>
+<ns0:recordPosition>23</ns0:recordPosition>
+<ns0:extraRecordData>
+<ns2:attr name="CreationDate">20041119</ns2:attr>
+<ns2:attr name="LastModificationDate">20230717</ns2:attr>
+<ns3:score>9.094704</ns3:score>
+</ns0:extraRecordData>
+</ns0:record>
+<ns0:record>
+<ns0:recordSchema>marcxchange</ns0:recordSchema>
+<ns0:recordPacking>xml</ns0:recordPacking>
+<ns0:recordData>
+<ns1:record format="UNIMARC" id="ark:/12148/cb42775895b" type="Bibliographic">
+<ns1:leader>     cam  22        450 </ns1:leader>
+<ns1:controlfield tag="001">FRBNF427758950000002</ns1:controlfield>
+<ns1:controlfield tag="003">http://catalogue.bnf.fr/ark:/12148/cb42775895b</ns1:controlfield>
+<ns1:datafield tag="010" ind1=" " ind2=" ">
+<ns1:subfield code="a">978-2-7560-2343-4</ns1:subfield>
+<ns1:subfield code="b">rel.</ns1:subfield>
+<ns1:subfield code="d">10,95 EUR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="020" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">01261874</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="073" ind1=" " ind2="0">
+<ns1:subfield code="a">9782756023434</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="100" ind1=" " ind2=" ">
+<ns1:subfield code="a">20121023d2012    a  y0frey50      ba</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="101" ind1="0" ind2=" ">
+<ns1:subfield code="a">fre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="102" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="105" ind1=" " ind2=" ">
+<ns1:subfield code="a">||||t   00|a|</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="106" ind1=" " ind2=" ">
+<ns1:subfield code="a">r</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">i </ns1:subfield>
+<ns1:subfield code="b">xxxe  </ns1:subfield>
+<ns1:subfield code="a">b </ns1:subfield>
+<ns1:subfield code="b">xb2e  </ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">txt</ns1:subfield>
+<ns1:subfield code="c">sti</ns1:subfield>
+<ns1:subfield code="2">rdacontent</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">n</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">n</ns1:subfield>
+<ns1:subfield code="2">rdamedia</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="200" ind1="1" ind2=" ">
+<ns1:subfield code="a">Amour mortel</ns1:subfield>
+<ns1:subfield code="b">Texte imprimé</ns1:subfield>
+<ns1:subfield code="f">Patrick Sobral</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="210" ind1=" " ind2=" ">
+<ns1:subfield code="a">[Paris]</ns1:subfield>
+<ns1:subfield code="c">Delcourt</ns1:subfield>
+<ns1:subfield code="d">impr. 2012</ns1:subfield>
+<ns1:subfield code="e">85-Luçon</ns1:subfield>
+<ns1:subfield code="g">Impr. Pollina</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="215" ind1=" " ind2=" ">
+<ns1:subfield code="a">1 vol. (48 p.)</ns1:subfield>
+<ns1:subfield code="c">ill. en coul., couv. ill. en coul.</ns1:subfield>
+<ns1:subfield code="d">30 cm</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="225" ind1="1" ind2="9">
+<ns1:subfield code="a">Les légendaires</ns1:subfield>
+<ns1:subfield code="v">15</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="330" ind1=" " ind2=" ">
+<ns1:subfield code="a">Shimmy est inquiète : Gryf aurait dû rentrer il y a plus dune semaine. Mais voici que Gryf revient enfin, avec une surprise : sa fiancée</ns1:subfield>
+<ns1:subfield code="2">Electre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="461" ind1=" " ind2="0">
+<ns1:subfield code="0">39246454</ns1:subfield>
+<ns1:subfield code="t">Les légendaires</ns1:subfield>
+<ns1:subfield code="v">15</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="686" ind1=" " ind2=" ">
+<ns1:subfield code="a">805</ns1:subfield>
+<ns1:subfield code="2">Cadre de classement de la Bibliographie nationale française</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="700" ind1=" " ind2="|">
+<ns1:subfield code="3">14570991</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000365480554</ns1:subfield>
+<ns1:subfield code="a">Sobral</ns1:subfield>
+<ns1:subfield code="b">Patrick</ns1:subfield>
+<ns1:subfield code="f">1972-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="801" ind1=" " ind2="0">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">FR-751131015</ns1:subfield>
+<ns1:subfield code="c">20121023</ns1:subfield>
+<ns1:subfield code="g">AFNOR</ns1:subfield>
+<ns1:subfield code="h">FRBNF427758950000002</ns1:subfield>
+<ns1:subfield code="2">intermrc</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="856" ind1=" " ind2="2">
+<ns1:subfield code="u">151769</ns1:subfield>
+<ns1:subfield code="b">Première de couverture</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:42775895001001</ns1:subfield>
+<ns1:subfield code="a">2012-292078</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Rez de Jardin - Littérature et art - Magasin</ns1:subfield>
+<ns1:subfield code="d">O</ns1:subfield>
+</ns1:datafield>
+</ns1:record>      </ns0:recordData>
+<ns0:recordIdentifier>ark:/12148/cb42775895b</ns0:recordIdentifier>
+<ns0:recordPosition>24</ns0:recordPosition>
+<ns0:extraRecordData>
+<ns2:attr name="CreationDate">20121023</ns2:attr>
+<ns2:attr name="LastModificationDate">20210804</ns2:attr>
+<ns3:score>9.094704</ns3:score>
+</ns0:extraRecordData>
+</ns0:record>
+<ns0:record>
+<ns0:recordSchema>marcxchange</ns0:recordSchema>
+<ns0:recordPacking>xml</ns0:recordPacking>
+<ns0:recordData>
+<ns1:record format="UNIMARC" id="ark:/12148/cb46561298r" type="Bibliographic">
+<ns1:leader>     cam  22        450 </ns1:leader>
+<ns1:controlfield tag="001">FRBNF465612980000001</ns1:controlfield>
+<ns1:controlfield tag="003">http://catalogue.bnf.fr/ark:/12148/cb46561298r</ns1:controlfield>
+<ns1:datafield tag="010" ind1=" " ind2=" ">
+<ns1:subfield code="a">978-2-413-01663-2</ns1:subfield>
+<ns1:subfield code="b">br.</ns1:subfield>
+<ns1:subfield code="d">7,99 EUR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="020" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">02312650</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="073" ind1=" " ind2="0">
+<ns1:subfield code="a">9782413016632</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="100" ind1=" " ind2=" ">
+<ns1:subfield code="a">20200626d2020    m  y0frey50      ba</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="101" ind1="0" ind2=" ">
+<ns1:subfield code="a">fre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="102" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="105" ind1=" " ind2=" ">
+<ns1:subfield code="a">||||t   00|a|</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="106" ind1=" " ind2=" ">
+<ns1:subfield code="a">r</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">i </ns1:subfield>
+<ns1:subfield code="b">xxxe  </ns1:subfield>
+<ns1:subfield code="a">b </ns1:subfield>
+<ns1:subfield code="b">xb2e  </ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">txt</ns1:subfield>
+<ns1:subfield code="c">sti</ns1:subfield>
+<ns1:subfield code="2">rdacontent</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">n</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">n</ns1:subfield>
+<ns1:subfield code="2">rdamedia</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="200" ind1="1" ind2=" ">
+<ns1:subfield code="a">Les légendaires</ns1:subfield>
+<ns1:subfield code="e">saga</ns1:subfield>
+<ns1:subfield code="h">1</ns1:subfield>
+<ns1:subfield code="b">Texte imprimé</ns1:subfield>
+<ns1:subfield code="f">scénario, Patrick Sobral</ns1:subfield>
+<ns1:subfield code="g">dessin, Guillaume Lapeyre</ns1:subfield>
+<ns1:subfield code="g">couleur, Lowenael</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="214" ind1=" " ind2="0">
+<ns1:subfield code="a">[Paris]</ns1:subfield>
+<ns1:subfield code="c">Delcourt-Tonkam</ns1:subfield>
+<ns1:subfield code="d">DL 2020</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="214" ind1=" " ind2="3">
+<ns1:subfield code="a">impr. en Italie</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="215" ind1=" " ind2=" ">
+<ns1:subfield code="a">1 vol. (non paginé [ca 200] p.)</ns1:subfield>
+<ns1:subfield code="c">ill.</ns1:subfield>
+<ns1:subfield code="d">19 cm</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="329" ind1=" " ind2=" ">
+<ns1:subfield code="c">Pourquoi pas ?</ns1:subfield>
+<ns1:subfield code="2">CNLJ</ns1:subfield>
+<ns1:subfield code="k">Avis critique donné par le Centre national de la littérature pour la jeunesse</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="330" ind1=" " ind2=" ">
+<ns1:subfield code="a">Adapter les 23 tomes des Légendaires en manga, c'est un vieux rêve qui se réalise enfin pour Patrick Sobral, mais aussi l'occasion pour chacun de (re)découvrir la série. Une adaptation fidèle qui permet de corriger les erreurs de la BD originelle et d'offrir aux scènes d'action l'ampleur qu'elles méritent. Forts de cette liberté, les auteurs ont pris beaucoup de plaisir. Gageons que les lecteurs en auront aussi.</ns1:subfield>
+<ns1:subfield code="2">éditeur</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="333" ind1=" " ind2=" ">
+<ns1:subfield code="a">À partir de 9 ans</ns1:subfield>
+<ns1:subfield code="2">CNLJ</ns1:subfield>
+<ns1:subfield code="k">Avis critique donné par le Centre national de la littérature pour la jeunesse</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="461" ind1=" " ind2="0">
+<ns1:subfield code="0">46563483</ns1:subfield>
+<ns1:subfield code="t">Les légendaires</ns1:subfield>
+<ns1:subfield code="v">1</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="608" ind1=" " ind2=" ">
+<ns1:subfield code="a">Bandes dessinées</ns1:subfield>
+<ns1:subfield code="2">CNLJ</ns1:subfield>
+<ns1:subfield code="k">Avis critique donné par le Centre national de la littérature pour la jeunesse</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="686" ind1=" " ind2=" ">
+<ns1:subfield code="a">805</ns1:subfield>
+<ns1:subfield code="2">Cadre de classement de la Bibliographie nationale française</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="700" ind1=" " ind2="|">
+<ns1:subfield code="3">14570991</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000365480554</ns1:subfield>
+<ns1:subfield code="a">Sobral</ns1:subfield>
+<ns1:subfield code="b">Patrick</ns1:subfield>
+<ns1:subfield code="f">1972-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="702" ind1=" " ind2="|">
+<ns1:subfield code="3">14504173</ns1:subfield>
+<ns1:subfield code="o">ISNI000000038235172X</ns1:subfield>
+<ns1:subfield code="a">Lapeyre</ns1:subfield>
+<ns1:subfield code="b">Guillaume</ns1:subfield>
+<ns1:subfield code="f">1978-....</ns1:subfield>
+<ns1:subfield code="4">440</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="801" ind1=" " ind2="0">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">FR-751131015</ns1:subfield>
+<ns1:subfield code="c">20200626</ns1:subfield>
+<ns1:subfield code="g">AFNOR</ns1:subfield>
+<ns1:subfield code="h">FRBNF465612980000001</ns1:subfield>
+<ns1:subfield code="2">intermrc</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="856" ind1=" " ind2="2">
+<ns1:subfield code="u">442275</ns1:subfield>
+<ns1:subfield code="b">Première de couverture</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:46561298001001</ns1:subfield>
+<ns1:subfield code="a">2020-144789</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Rez de Jardin - Littérature et art - Magasin</ns1:subfield>
+<ns1:subfield code="d">O</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:46561298002001</ns1:subfield>
+<ns1:subfield code="a">2022-193223</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Rez de Jardin - Littérature et art - Magasin</ns1:subfield>
+<ns1:subfield code="d">O</ns1:subfield>
+</ns1:datafield>
+</ns1:record>      </ns0:recordData>
+<ns0:recordIdentifier>ark:/12148/cb46561298r</ns0:recordIdentifier>
+<ns0:recordPosition>26</ns0:recordPosition>
+<ns0:extraRecordData>
+<ns2:attr name="CreationDate">20200626</ns2:attr>
+<ns2:attr name="LastModificationDate">20230313</ns2:attr>
+<ns3:score>9.094209</ns3:score>
+</ns0:extraRecordData>
+</ns0:record>
+<ns0:record>
+<ns0:recordSchema>marcxchange</ns0:recordSchema>
+<ns0:recordPacking>xml</ns0:recordPacking>
+<ns0:recordData>
+<ns1:record format="UNIMARC" id="ark:/12148/cb45829812b" type="Bibliographic">
+<ns1:leader>     cam  22        450 </ns1:leader>
+<ns1:controlfield tag="001">FRBNF458298120000008</ns1:controlfield>
+<ns1:controlfield tag="003">http://catalogue.bnf.fr/ark:/12148/cb45829812b</ns1:controlfield>
+<ns1:datafield tag="010" ind1=" " ind2=" ">
+<ns1:subfield code="a">978-2-413-01309-9</ns1:subfield>
+<ns1:subfield code="b">rel.</ns1:subfield>
+<ns1:subfield code="d">10,95 EUR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="020" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">01973589</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="073" ind1=" " ind2="0">
+<ns1:subfield code="a">9782413013099</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="100" ind1=" " ind2=" ">
+<ns1:subfield code="a">20191024d2019    a  y0frey50      ba</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="101" ind1="0" ind2=" ">
+<ns1:subfield code="a">fre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="102" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="105" ind1=" " ind2=" ">
+<ns1:subfield code="a">||||t   00|a|</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="106" ind1=" " ind2=" ">
+<ns1:subfield code="a">r</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">i </ns1:subfield>
+<ns1:subfield code="b">xxxe  </ns1:subfield>
+<ns1:subfield code="a">b </ns1:subfield>
+<ns1:subfield code="b">xb2e  </ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">txt</ns1:subfield>
+<ns1:subfield code="c">sti</ns1:subfield>
+<ns1:subfield code="2">rdacontent</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">n</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">n</ns1:subfield>
+<ns1:subfield code="2">rdamedia</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="200" ind1="1" ind2=" ">
+<ns1:subfield code="a">Les éveillés</ns1:subfield>
+<ns1:subfield code="b">Texte imprimé</ns1:subfield>
+<ns1:subfield code="f">scénario &amp; dessin, Patrick Sobral</ns1:subfield>
+<ns1:subfield code="g">couleur, Patrick Sobral &amp; Pop</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="214" ind1=" " ind2="0">
+<ns1:subfield code="a">[Paris]</ns1:subfield>
+<ns1:subfield code="c">Delcourt</ns1:subfield>
+<ns1:subfield code="d">DL 2019</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="214" ind1=" " ind2="3">
+<ns1:subfield code="a">85-Luçon</ns1:subfield>
+<ns1:subfield code="c">Impr. Pollina</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="215" ind1=" " ind2=" ">
+<ns1:subfield code="a">1 vol. (47 p.)</ns1:subfield>
+<ns1:subfield code="c">ill. en coul.</ns1:subfield>
+<ns1:subfield code="d">30 cm</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="225" ind1="1" ind2="9">
+<ns1:subfield code="a">Les légendaires</ns1:subfield>
+<ns1:subfield code="e">world without</ns1:subfield>
+<ns1:subfield code="v">22</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="330" ind1=" " ind2=" ">
+<ns1:subfield code="a">Artémus et ses compagnons sont conduits dans une cité secrète dirigée par Kalandre et le mage écarlate, Elysio. Cette cité est constituée de personnes venant de tout Alysia qui se font appeler « les Éveillés ». Ceux-ci sont persuadés d'être les victimes d'un sortilège et qu'une autre vie existe. Elysio propose à nos amis d'en faire la preuve en les soumettant à l'épreuve du miroir de la vérité !</ns1:subfield>
+<ns1:subfield code="2">éditeur</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="461" ind1=" " ind2="0">
+<ns1:subfield code="0">39246454</ns1:subfield>
+<ns1:subfield code="t">Les légendaires</ns1:subfield>
+<ns1:subfield code="v">22</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="686" ind1=" " ind2=" ">
+<ns1:subfield code="a">805</ns1:subfield>
+<ns1:subfield code="2">Cadre de classement de la Bibliographie nationale française</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="700" ind1=" " ind2="|">
+<ns1:subfield code="3">14570991</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000365480554</ns1:subfield>
+<ns1:subfield code="a">Sobral</ns1:subfield>
+<ns1:subfield code="b">Patrick</ns1:subfield>
+<ns1:subfield code="f">1972-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="801" ind1=" " ind2="0">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">FR-751131015</ns1:subfield>
+<ns1:subfield code="c">20191024</ns1:subfield>
+<ns1:subfield code="g">AFNOR</ns1:subfield>
+<ns1:subfield code="h">FRBNF458298120000008</ns1:subfield>
+<ns1:subfield code="2">intermrc</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="856" ind1=" " ind2="2">
+<ns1:subfield code="u">406664</ns1:subfield>
+<ns1:subfield code="b">Première de couverture</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:45829812001001</ns1:subfield>
+<ns1:subfield code="a">2019-238479</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Rez de Jardin - Littérature et art - Magasin</ns1:subfield>
+<ns1:subfield code="d">O</ns1:subfield>
+</ns1:datafield>
+</ns1:record>      </ns0:recordData>
+<ns0:recordIdentifier>ark:/12148/cb45829812b</ns0:recordIdentifier>
+<ns0:recordPosition>32</ns0:recordPosition>
+<ns0:extraRecordData>
+<ns2:attr name="CreationDate">20191024</ns2:attr>
+<ns2:attr name="LastModificationDate">20230310</ns2:attr>
+<ns3:score>8.946631</ns3:score>
+</ns0:extraRecordData>
+</ns0:record>
+<ns0:record>
+<ns0:recordSchema>marcxchange</ns0:recordSchema>
+<ns0:recordPacking>xml</ns0:recordPacking>
+<ns0:recordData>
+<ns1:record format="UNIMARC" id="ark:/12148/cb426691532" type="Bibliographic">
+<ns1:leader>     cam  22        450 </ns1:leader>
+<ns1:controlfield tag="001">FRBNF426691530000006</ns1:controlfield>
+<ns1:controlfield tag="003">http://catalogue.bnf.fr/ark:/12148/cb426691532</ns1:controlfield>
+<ns1:datafield tag="010" ind1=" " ind2=" ">
+<ns1:subfield code="a">978-2-7560-2689-3</ns1:subfield>
+<ns1:subfield code="b">rel.</ns1:subfield>
+<ns1:subfield code="d">10,95 EUR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="010" ind1=" " ind2=" ">
+<ns1:subfield code="a">978-2-413-08039-8</ns1:subfield>
+<ns1:subfield code="b">réimpr. 2023</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="020" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">01231620</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="073" ind1=" " ind2="0">
+<ns1:subfield code="a">9782756026893</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="073" ind1=" " ind2="0">
+<ns1:subfield code="a">9782413080398</ns1:subfield>
+<ns1:subfield code="b">réimpr. 2023</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="100" ind1=" " ind2=" ">
+<ns1:subfield code="a">20120521d2012    a  y0frey50      ba</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="101" ind1="0" ind2=" ">
+<ns1:subfield code="a">fre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="102" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="105" ind1=" " ind2=" ">
+<ns1:subfield code="a">||||t   00|a|</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="106" ind1=" " ind2=" ">
+<ns1:subfield code="a">r</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">i </ns1:subfield>
+<ns1:subfield code="b">xxxe  </ns1:subfield>
+<ns1:subfield code="a">b </ns1:subfield>
+<ns1:subfield code="b">xb2e  </ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">txt</ns1:subfield>
+<ns1:subfield code="c">sti</ns1:subfield>
+<ns1:subfield code="2">rdacontent</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">n</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">n</ns1:subfield>
+<ns1:subfield code="2">rdamedia</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="200" ind1="1" ind2=" ">
+<ns1:subfield code="a">Danaël</ns1:subfield>
+<ns1:subfield code="b">Texte imprimé</ns1:subfield>
+<ns1:subfield code="f">Sobral, Nadou</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="210" ind1=" " ind2=" ">
+<ns1:subfield code="a">[Paris]</ns1:subfield>
+<ns1:subfield code="c">Delcourt</ns1:subfield>
+<ns1:subfield code="d">impr. 2012</ns1:subfield>
+<ns1:subfield code="e">impr. en Belgique</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="215" ind1=" " ind2=" ">
+<ns1:subfield code="a">1 vol. (47 p.)</ns1:subfield>
+<ns1:subfield code="c">ill. en coul., couv. ill. en coul.</ns1:subfield>
+<ns1:subfield code="d">30 cm</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="225" ind1="1" ind2="9">
+<ns1:subfield code="a">Les légendaires, origines</ns1:subfield>
+<ns1:subfield code="v">1</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="316" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:42669153002001</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="321" ind1=" " ind2=" ">
+<ns1:subfield code="a">La Revue des livres pour enfants</ns1:subfield>
+<ns1:subfield code="x">0398-8384</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="329" ind1=" " ind2=" ">
+<ns1:subfield code="c">Intéressant</ns1:subfield>
+<ns1:subfield code="d">20120606</ns1:subfield>
+<ns1:subfield code="f">OP</ns1:subfield>
+<ns1:subfield code="2">CNLJ</ns1:subfield>
+<ns1:subfield code="k">Avis critique donné par le Centre national de la littérature pour la jeunesse</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="330" ind1=" " ind2=" ">
+<ns1:subfield code="a">Récit du passé de Danaël, l'un des héros de Les Légendaires. D'un caractère impétueux, le jeune Faucon d'argent ne parvient pas à s'intégrer au corps d'armée dirigé par son frère.</ns1:subfield>
+<ns1:subfield code="2">Electre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="333" ind1=" " ind2=" ">
+<ns1:subfield code="a">À partir de 9 ans</ns1:subfield>
+<ns1:subfield code="2">CNLJ</ns1:subfield>
+<ns1:subfield code="k">Avis critique donné par le Centre national de la littérature pour la jeunesse</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="461" ind1=" " ind2="0">
+<ns1:subfield code="0">42682048</ns1:subfield>
+<ns1:subfield code="t">Les légendaires, origines</ns1:subfield>
+<ns1:subfield code="v">1</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="608" ind1=" " ind2=" ">
+<ns1:subfield code="a">Bandes dessinées</ns1:subfield>
+<ns1:subfield code="2">CNLJ</ns1:subfield>
+<ns1:subfield code="k">Avis critique donné par le Centre national de la littérature pour la jeunesse</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="686" ind1=" " ind2=" ">
+<ns1:subfield code="a">805</ns1:subfield>
+<ns1:subfield code="2">Cadre de classement de la Bibliographie nationale française</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="700" ind1=" " ind2="|">
+<ns1:subfield code="3">14570991</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000365480554</ns1:subfield>
+<ns1:subfield code="a">Sobral</ns1:subfield>
+<ns1:subfield code="b">Patrick</ns1:subfield>
+<ns1:subfield code="f">1972-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="701" ind1=" " ind2="|">
+<ns1:subfield code="3">16602484</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000371235600</ns1:subfield>
+<ns1:subfield code="a">Nadou</ns1:subfield>
+<ns1:subfield code="f">1988-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="801" ind1=" " ind2="0">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">FR-751131015</ns1:subfield>
+<ns1:subfield code="c">20120521</ns1:subfield>
+<ns1:subfield code="g">AFNOR</ns1:subfield>
+<ns1:subfield code="h">FRBNF426691530000006</ns1:subfield>
+<ns1:subfield code="2">intermrc</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="856" ind1=" " ind2="2">
+<ns1:subfield code="u">152015</ns1:subfield>
+<ns1:subfield code="b">Première de couverture</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:42669153001001</ns1:subfield>
+<ns1:subfield code="a">2012-114413</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Rez de Jardin - Littérature et art - Magasin</ns1:subfield>
+<ns1:subfield code="d">O</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:42669153002001</ns1:subfield>
+<ns1:subfield code="a">FOL-CNLJ-4678</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Rez de Jardin - Littérature et art - Magasin</ns1:subfield>
+<ns1:subfield code="d">O</ns1:subfield>
+</ns1:datafield>
+</ns1:record>      </ns0:recordData>
+<ns0:recordIdentifier>ark:/12148/cb426691532</ns0:recordIdentifier>
+<ns0:recordPosition>37</ns0:recordPosition>
+<ns0:extraRecordData>
+<ns2:attr name="CreationDate">20120521</ns2:attr>
+<ns2:attr name="LastModificationDate">20230710</ns2:attr>
+<ns3:score>8.942145</ns3:score>
+</ns0:extraRecordData>
+</ns0:record>
+<ns0:record>
+<ns0:recordSchema>marcxchange</ns0:recordSchema>
+<ns0:recordPacking>xml</ns0:recordPacking>
+<ns0:recordData>
+<ns1:record format="UNIMARC" id="ark:/12148/cb43605846n" type="Bibliographic">
+<ns1:leader>     cam  22        450 </ns1:leader>
+<ns1:controlfield tag="001">FRBNF436058460000001</ns1:controlfield>
+<ns1:controlfield tag="003">http://catalogue.bnf.fr/ark:/12148/cb43605846n</ns1:controlfield>
+<ns1:datafield tag="010" ind1=" " ind2=" ">
+<ns1:subfield code="a">978-2-7560-2797-5</ns1:subfield>
+<ns1:subfield code="b">rel.</ns1:subfield>
+<ns1:subfield code="d">10,95 EUR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="020" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">01340000</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="073" ind1=" " ind2="0">
+<ns1:subfield code="a">9782756027975</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="100" ind1=" " ind2=" ">
+<ns1:subfield code="a">20130605d2013    a  y0frey50      ba</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="101" ind1="0" ind2=" ">
+<ns1:subfield code="a">fre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="102" ind1=" " ind2=" ">
+<ns1:subfield code="a">FR</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="105" ind1=" " ind2=" ">
+<ns1:subfield code="a">||||t   00|a|</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="106" ind1=" " ind2=" ">
+<ns1:subfield code="a">r</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">i </ns1:subfield>
+<ns1:subfield code="b">xxxe  </ns1:subfield>
+<ns1:subfield code="a">b </ns1:subfield>
+<ns1:subfield code="b">xb2e  </ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="181" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">txt</ns1:subfield>
+<ns1:subfield code="c">sti</ns1:subfield>
+<ns1:subfield code="2">rdacontent</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2="0">
+<ns1:subfield code="6">01</ns1:subfield>
+<ns1:subfield code="a">n</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="182" ind1=" " ind2=" ">
+<ns1:subfield code="6">02</ns1:subfield>
+<ns1:subfield code="c">n</ns1:subfield>
+<ns1:subfield code="2">rdamedia</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="200" ind1="1" ind2=" ">
+<ns1:subfield code="a">Jadina</ns1:subfield>
+<ns1:subfield code="b">Texte imprimé</ns1:subfield>
+<ns1:subfield code="f">Sobral, Nadou</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="210" ind1=" " ind2=" ">
+<ns1:subfield code="a">[Paris]</ns1:subfield>
+<ns1:subfield code="c">Delcourt</ns1:subfield>
+<ns1:subfield code="d">impr. 2013</ns1:subfield>
+<ns1:subfield code="e">impr. en Belgique</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="215" ind1=" " ind2=" ">
+<ns1:subfield code="a">1 vol. (47 p.)</ns1:subfield>
+<ns1:subfield code="c">ill. en coul., couv. ill. en coul.</ns1:subfield>
+<ns1:subfield code="d">30 cm</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="225" ind1="1" ind2="9">
+<ns1:subfield code="a">Les légendaires, origines</ns1:subfield>
+<ns1:subfield code="v">2</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="300" ind1=" " ind2=" ">
+<ns1:subfield code="a">Contient un flashcode</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="316" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:43605846002001</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="321" ind1=" " ind2=" ">
+<ns1:subfield code="a">La Revue des livres pour enfants</ns1:subfield>
+<ns1:subfield code="x">0398-8384</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="329" ind1=" " ind2=" ">
+<ns1:subfield code="c">Intéressant</ns1:subfield>
+<ns1:subfield code="d">20130912</ns1:subfield>
+<ns1:subfield code="2">CNLJ</ns1:subfield>
+<ns1:subfield code="k">Avis critique donné par le Centre national de la littérature pour la jeunesse</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="330" ind1=" " ind2=" ">
+<ns1:subfield code="a">Jadina ne souhaite pas hériter du trône du royaume d'Orchidia. Elle devra affronter sa mère pour rejoindre les Légendaires.</ns1:subfield>
+<ns1:subfield code="2">Electre</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="333" ind1=" " ind2=" ">
+<ns1:subfield code="a">À partir de 9 ans</ns1:subfield>
+<ns1:subfield code="2">CNLJ</ns1:subfield>
+<ns1:subfield code="k">Avis critique donné par le Centre national de la littérature pour la jeunesse</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="461" ind1=" " ind2="0">
+<ns1:subfield code="0">42682048</ns1:subfield>
+<ns1:subfield code="t">Les légendaires, origines</ns1:subfield>
+<ns1:subfield code="v">2</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="608" ind1=" " ind2=" ">
+<ns1:subfield code="a">Bandes dessinées</ns1:subfield>
+<ns1:subfield code="2">CNLJ</ns1:subfield>
+<ns1:subfield code="k">Avis critique donné par le Centre national de la littérature pour la jeunesse</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="686" ind1=" " ind2=" ">
+<ns1:subfield code="a">805</ns1:subfield>
+<ns1:subfield code="2">Cadre de classement de la Bibliographie nationale française</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="700" ind1=" " ind2="|">
+<ns1:subfield code="3">14570991</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000365480554</ns1:subfield>
+<ns1:subfield code="a">Sobral</ns1:subfield>
+<ns1:subfield code="b">Patrick</ns1:subfield>
+<ns1:subfield code="f">1972-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="701" ind1=" " ind2="|">
+<ns1:subfield code="3">16602484</ns1:subfield>
+<ns1:subfield code="o">ISNI0000000371235600</ns1:subfield>
+<ns1:subfield code="a">Nadou</ns1:subfield>
+<ns1:subfield code="f">1988-....</ns1:subfield>
+<ns1:subfield code="4">070</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="801" ind1=" " ind2="0">
+<ns1:subfield code="a">FR</ns1:subfield>
+<ns1:subfield code="b">FR-751131015</ns1:subfield>
+<ns1:subfield code="c">20130605</ns1:subfield>
+<ns1:subfield code="g">AFNOR</ns1:subfield>
+<ns1:subfield code="h">FRBNF436058460000001</ns1:subfield>
+<ns1:subfield code="2">intermrc</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="856" ind1=" " ind2="2">
+<ns1:subfield code="u">152064</ns1:subfield>
+<ns1:subfield code="b">Première de couverture</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:43605846001001</ns1:subfield>
+<ns1:subfield code="a">2013-183829</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Rez de Jardin - Littérature et art - Magasin</ns1:subfield>
+<ns1:subfield code="d">O</ns1:subfield>
+</ns1:datafield>
+<ns1:datafield tag="930" ind1=" " ind2=" ">
+<ns1:subfield code="5">FR-751131010:43605846002001</ns1:subfield>
+<ns1:subfield code="a">- Littérature et art - Salle I - Actualité de l'édition</ns1:subfield>
+<ns1:subfield code="b">759999999</ns1:subfield>
+<ns1:subfield code="c">Tolbiac - Haut de Jardin - Littérature et art - Libre accès</ns1:subfield>
+<ns1:subfield code="d">N</ns1:subfield>
+</ns1:datafield>
+</ns1:record>      </ns0:recordData>
+<ns0:recordIdentifier>ark:/12148/cb43605846n</ns0:recordIdentifier>
+<ns0:recordPosition>38</ns0:recordPosition>
+<ns0:extraRecordData>
+<ns2:attr name="CreationDate">20130605</ns2:attr>
+<ns2:attr name="LastModificationDate">20151222</ns2:attr>
+<ns3:score>8.942145</ns3:score>
+</ns0:extraRecordData>
+</ns0:record>
+</ns0:records>
+</ns0:searchRetrieveResponse>
