@@ -51,3 +51,9 @@ test('preserves same-titled French series from different publishers', () => {
 test('deduplicates repeated BnF results for one publisher', () => {
   assert.equal(dedupeResults([row('bnf', 'Urban Comics', 'ark:1'), row('bnf', 'Urban Comics', 'ark:1')]).length, 1);
 });
+
+import { volumeTitle } from '../src/server/integrations/french-catalog/model.ts';
+test('keeps explicit edition qualifiers following the tome number', () => {
+  assert.deepEqual(volumeTitle('Batman - Tome 1 - Édition de luxe'), { name: 'Batman (Édition de luxe)', number: 1 });
+  assert.deepEqual(volumeTitle('Batman - Tome 1 - La Cour des hiboux'), { name: 'Batman', number: 1 });
+});

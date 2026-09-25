@@ -28,10 +28,13 @@ export function normalized(value: string | null | undefined): string {
 }
 /** Keep integral/deluxe/spin-off qualifiers; only strip an explicit volume suffix. */
 export function volumeTitle(title: string): { name: string; number: number | null } {
-  const match = /^(.*?)\s*(?:[-–—:.]\s*)?\b(?:tome|t\.?|volume|vol\.?)\s*0*(\d{1,3})(?!\d)(?:\s*[-–—:.].*)?$/i.exec(title);
+  const match = /^(.*?)\s*(?:[-–—:.]\s*)?\b(?:tome|t\.?|volume|vol\.?)\s*0*(\d{1,3})(?!\d)(?:\s*[-–—:.]\s*(.*))?$/i.exec(title);
   if (!match?.[1]?.trim() || !match[2]) return { name: title.trim(), number: null };
   const n = Number(match[2]);
-  return { name: match[1].trim(), number: n > 0 ? n : null };
+  const suffix = match[3]?.trim();
+  // Ordinary album subtitles do not define a series, explicit edition labels do.
+  const edition = suffix && /^(?:(?:edition|ed)\s+)?(?:integrale|deluxe|de luxe|collector|omnibus|perfect)(?:\s|$)/.test(normalized(suffix));
+  return { name: `${match[1].trim()}${edition ? ` (${suffix})` : ''}`, number: n > 0 ? n : null };
 }
 export function frenchCoverUrl(ean: string | null, ark?: string | null, googleId?: string): string | null {
   const qs = new URLSearchParams();

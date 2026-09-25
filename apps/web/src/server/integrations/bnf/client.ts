@@ -240,7 +240,7 @@ function unimarcRecord(raw: Record<string, unknown>): ParsedRecord | null {
   if (!classifiedComic && (classifications.some(v => ['793', '182'].includes(v)) || genres.some(v => /^romans?(?: |$)/.test(norm(v)) && !/graphique/.test(norm(v))))) return null;
   const result = parseRecord({ dc: {
     identifier: [String(raw['@_id'] ?? ''), ...all(['010', '073'], 'a')], title,
-    publisher: all(['214', '210'], 'c'), date: all(['214', '210'], 'd'),
+    publisher: all(['214', '219', '210'], 'c'), date: all(['214', '219', '210'], 'd'),
     language: all(['101'], 'a'), description: all(['330'], 'a'),
     subject: [...all(['606', '608', '610'], 'a', 'x'), ...(classifiedComic ? ['Bande dessinée'] : [])],
     creator: tagged('700', '701', '702', '710', '711', '712').map(f => values(f, 'a', 'b').join(', ')),
