@@ -19,7 +19,8 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 ## REQUIRED PHASES
 - [x] Initial BnF French comics search and cover support exists in baseline.
 - [x] Normalize and validate BnF ISBN-10/ISBN-13/book EAN, and preserve the explicitly selected notice.
-- [ ] Harden the remaining BnF metadata behavior (outside this session).
+- [x] Preserve unknown BnF ordinals and prevent unnumbered albums from creating numbered library rows.
+- [ ] Harden the remaining BnF metadata behavior (outside the completed sessions).
 - [ ] Add reliable complementary metadata for recent French editions absent from BnF.
 - [ ] Harden series / volume / edition grouping.
 - [ ] Harden edition deduplication.
@@ -28,11 +29,47 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the unnumbered-albums NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `6f2a27d19fcc053b7cce7ed9c3076489179f1e9a`.
+Session date: 2026-09-25 (Europe/Paris).
+
+### DONE: unnumbered albums
+- `BnfComicVolume.number` is nullable; dates and result order never create an ordinal.
+- Named albums remain in the catalog alongside numbered volumes.
+- Descriptions cannot supply an ordinal mentioned for another album; explicit title/relation ordinals remain supported.
+- `volumeCount` counts observed albums; it is not an inferred highest ordinal.
+- Hydration skips unnumbered albums, creates only explicit numbered rows and is idempotent.
+- Known library rows and totals are preserved; all-unnumbered results leave an unknown total null.
+- No database schema change and no changes to the deployed VM.
+
+### Exact verification: unnumbered albums
+Before fixes, the two new files reproduced **7 failed, 1 passed (8 total)**.
+New tests, all now passing (`FAILED BEFORE` identifies reproduced failures):
+1. keeps named albums unnumbered regardless of dates or response order — FAILED BEFORE
+2. retains unnumbered albums alongside explicit numbered volumes — FAILED BEFORE
+3. does not take a volume number mentioned in a description — FAILED BEFORE
+4. preserves explicit title and relation ordinals
+5. keeps the selected unnumbered notice unnumbered during hydration — FAILED BEFORE
+6. does not create numbered library volumes or totals from unnumbered albums — FAILED BEFORE
+7. imports only explicit ordinals and remains idempotent for mixed results — FAILED BEFORE
+8. preserves existing numbered volumes and known totals when only unnumbered albums return — FAILED BEFORE
+The three integration failures initially hit SQLite's `NOT NULL` constraint for `volumes.number`.
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/integrations/bnf/numbering.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/server/integrations/bnf/identifiers.test.ts tests/server/french-comics-bnf.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **28 passed, 0 failed**, five files (8 new tests + 17 identifier/parser tests + 3 existing hydration tests).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS.
+Integration tests used temporary SQLite databases and mocked provider responses.
+No full regression suite, CI validation, Docker build, live-provider validation or deployment was performed in this session.
+
+## PREVIOUS SESSION: ISBN/EAN and selected edition
 Completed the ISBN/EAN and selected-edition NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `82d6c7449b71d34d63e1cf73d2adb9c25d3b9ea3`.
 Session date: 2026-09-25 (Europe/Paris).
 
-### DONE in this session
+### DONE: identifiers and selected edition
 - Validate ISBN-10 and ISBN-13 check digits; normalize lowercase X and separators.
 - Convert ISBN-10 to the equivalent 978 EAN. Reject invalid and non-book identifiers.
 - Extract separate identifiers from catalog prose without concatenating adjacent numbers.
@@ -75,11 +112,12 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 
 ### Remaining limits observed in the scoped audit
 - Series search still chooses one record per ordinal/title; this is not complete multi-edition deduplication.
-- Unnumbered albums are still assigned invented sequential numbers in `chooseRecords`.
+- Unnumbered albums now stay null and are not persisted as numbered library rows; this is intentional until reliable numbering is available.
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
 - Do not recreate the initial BnF integration from scratch.
+- Do not reintroduce inferred ordinals or repeat the completed unnumbered-album investigation without a new failing case.
 - Do not re-audit or reimplement the completed ISBN/check-digit/EAN extraction and selected-ARK fixes above without a new failing case.
 - Do not import unrelated release-branch changes or repeat the full repository audit.
 - Do not alter the user's deployed production instance.
@@ -90,7 +128,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Fix invented numbering of unnumbered BnF albums: add focused tests for `chooseRecords` through the BnF public API, preserve a null ordinal when no explicit volume number is provided, and update only directly affected consumers/types so unnumbered albums cannot create numbered library volumes. Run the relevant tests, commit, update this checkpoint with one next action, and stop.
+Harden French-language eligibility in BnF search and direct-ARK hydration: add focused tests for explicitly non-French notices, apply consistent rejection in both entry points, document the handling of missing language metadata, run relevant tests, commit the verified result, update this checkpoint with one next action, and stop.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
