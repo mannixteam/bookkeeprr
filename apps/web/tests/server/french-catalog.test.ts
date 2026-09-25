@@ -45,6 +45,12 @@ describe('French catalogue', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(xml(record())));
     await expect(getFrenchComicSeries('ark:/12148/cb87654321z')).rejects.toThrow('not found');
   });
+  it('rejects foreign notices during direct ARK hydration as well as search', async () => {
+    const fetcher = vi.fn().mockResolvedValue(xml(record('Sacrifice. Tome 1', 'eng')));
+    vi.stubGlobal('fetch', fetcher);
+    await expect(getFrenchComicSeries('ark:/12148/cb12345678x')).rejects.toThrow('not a French comic');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('searches ISBN using the ISBN index', async () => {
     const fetcher = vi.fn().mockResolvedValue(xml(record())); vi.stubGlobal('fetch', fetcher);
     await searchFrenchComicSeries('9782723488525');

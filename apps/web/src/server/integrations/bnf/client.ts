@@ -455,11 +455,14 @@ function finalizeGroup(records: ParsedRecord[], query: string): BnfComicSeriesHi
   };
 }
 
+function isFrenchComicRecord(record: ParsedRecord): boolean {
+  return (!record.language || /^(fre|fr|fra)\b|francais/i.test(norm(record.language))) && record.comicLike;
+}
+
 function groupRecords(records: ParsedRecord[], query: string): BnfComicSeriesHit[] {
   const groups = new Map<string, ParsedRecord[]>();
   for (const record of records) {
-    if (record.language && !/^(fre|fr|fra)\b|francais/i.test(norm(record.language))) continue;
-    if (!record.comicLike && !publisherLooksComic(record.publisher)) continue;
+    if (!isFrenchComicRecord(record)) continue;
     const title = groupTitle(record, query);
     if (!norm(title)) continue;
     const key = groupKey(record, query);
@@ -507,6 +510,7 @@ export async function getFrenchComicSeries(
   const seedRecords = await sru(`bib.persistentid any "${escapeCql(seedArk)}"`, 5);
   const seed = seedRecords.find((r) => r.ark.toLowerCase() === seedArk.toLowerCase());
   if (!seed) throw new BnfError(`BnF record not found: ${seedArk}`, 404);
+  if (!isFrenchComicRecord(seed)) throw new BnfError('BnF record is not a French comic', 422);
 
   const query = preferredTitle?.trim() || seed.structuredSeries || seed.baseTitle;
   const related = await sru(`(bib.title all "${escapeCql(query)}") and (bib.recordtype any "mon")`).catch(() => []);
