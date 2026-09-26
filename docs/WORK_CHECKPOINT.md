@@ -25,7 +25,8 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Validate BnF SRU XML/envelopes and response-level diagnostics before accepting a page.
 - [ ] Harden the remaining BnF metadata behavior (outside the completed sessions).
 - [x] Add a BnF-first French exact-ISBN lookup with Open Library edition fallback.
-- [ ] Connect complementary editions to Discover/library and expand recent French metadata beyond exact ISBN lookup.
+- [x] Connect exact French ISBN lookup to Discover and verified edition-only library add.
+- [ ] Expand recent French metadata beyond exact ISBN lookup.
 - [x] Separate same-title BnF works with conflicting creators/publishers and prioritize explicit series relations.
 - [x] Separate explicitly identified integral/omnibus notices from ordinary numbered volumes.
 - [ ] Harden remaining series / volume / edition grouping.
@@ -36,6 +37,41 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the Discover/verified-edition-add NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `14243e0b1fc763bbc9741ce604fbcd7144f3b19f`.
+Session date: 2026-09-26 (Europe/Paris).
+
+### DONE: Discover ISBN edition flow
+- Discover includes an expandable `Édition française par ISBN` form using the completed lookup endpoint.
+- Results show the edition title, canonical ISBN, French language and linked source attribution; users choose a quality profile and explicitly add the edition as BD/comic/manga.
+- New POST on `/api/discover/french-isbn` accepts only ISBN, selected source/ID and quality-profile ID. It re-runs the existing verified lookup; missing/changed editions return 409 and provider failure returns 502 without writes.
+- Forged client title/language/ARK fields are ignored. Invalid ISBN/profile is rejected.
+- Persist canonical ISBN in `series.isbn`; retain French language, attribution, provider edition ID and source URL in the persistent description. No fabricated BnF marker or Open Library work ID is stored.
+- Store an edition-only comic library entry with unknown totals, no numbered rows, monitoring disabled and no hydration/download jobs. Root path uses the configured comic media root, sanitized title and canonical ISBN.
+- Serialize duplicate check/insert with the existing DB write lock. Repeated/concurrent adds of the same canonical ISBN in the comic library return the existing row, without replacing its metadata.
+- Link to the new/existing library entry and refresh the library route cache after success. No database migration.
+
+### Exact verification: Discover/import
+The first focused run reported **2 failed, 35 passed**: both failures were unsupported DOM assertion helpers in the new component tests. Replaced them with equivalent attribute/text assertions supported by this repository.
+Added a BnF edition-only import case; TypeScript caught an Open Library-only date field in its fixture, corrected to undefined. No product assertions were removed or weakened.
+New tests: **10 passed** (2 component flow/error tests + 8 temporary-SQLite import cases including both providers, concurrency, revalidation failures, forged metadata, bad profile and invalid ISBN).
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/components/french-isbn.test.tsx tests/components/discover-empty.test.tsx tests/integration/jobs/french-edition-add.test.ts tests/server/discover/french-isbn.test.ts tests/server/integrations/openlibrary tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-editions.test.ts tests/integration/jobs/bnf-compilations.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **219 passed, 0 failed**, twenty-one files (205 previous + 4 existing Discover UI tests + 10 new).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS after the fixture correction.
+Verification uses jsdom, mocked providers and temporary SQLite. No browser visual review, full suite, CI run, live-provider check, Docker build or VM deployment.
+
+### Intentional limits
+Exact-ISBN entries represent a selected edition, not a complete series. They have no inferred ordinal and no automatic downloads; this is stated in the UI.
+Open Library does not prove comic genre; the user's explicit BD/comic/manga add action classifies the entry.
+Language/provider provenance are preserved in the human-readable description, not dedicated queryable columns. No edition refresh or series-association UI was added.
+Duplicate checking covers canonical ISBNs already stored in comic `series.isbn`; legacy entries without a series-level ISBN and volume-level ISBNs are outside this check.
+No image acceptance/cover validation was added; the new edition import leaves the cover unset.
+
+## PREVIOUS SESSION: exact-ISBN fallback
 Completed the French-only exact-ISBN complementary lookup NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `368201b9f15ab0400e3e21422cdf674cd4923b79`.
 Session date: 2026-09-26 (Europe/Paris).
@@ -70,7 +106,7 @@ Result: **205 passed, 0 failed**, eighteen files (24 new + 129 previous targeted
 Mocked provider responses and temporary SQLite regressions only; no full suite, CI run, live-provider coverage validation, Docker build or VM deployment.
 
 ### Remaining limits
-This is a usable read-only API endpoint, not yet wired into the Discover UI or library add flow. No existing broad title search behavior was changed.
+At this checkpoint the endpoint was read-only; the subsequent Discover/import session above connects it to the UI and adds POST. No existing broad title search behavior was changed.
 Open Library fallback proves exact French edition identity, not comic genre or series membership; the response must not be silently treated as a complete comic series. Missing language metadata intentionally reduces coverage.
 No cross-provider title merging, cover validation, edition hydration/import, or general recent-release coverage claim is made. Existing SRU no-cursor/invalid-cursor termination rules remain unchanged.
 
@@ -353,6 +389,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse the completed Discover exact-ISBN form and revalidated edition-only add path; preserve provenance, unknown totals, disabled automatic monitoring and concurrent-add idempotence.
 - Reuse the completed exact-ISBN endpoint, Open Library adapter and BnF-first/error policy; do not repeat provider selection or the completed fallback investigation without a new failing case.
 - Do not repeat the completed within-group ISBN/EAN edition deduplication or library selection-preservation investigation without a new failing case; retain distinct editions and conservative no-ISBN behavior.
 - Do not repeat the completed title/type-marked integral/omnibus separation without a new failing case; preserve null individual ordinals, catalog visibility, selected-ARK isolation and existing library rows.
@@ -372,7 +409,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Connect the completed French exact-ISBN lookup to Discover with a source-labelled edition result and a safe library-add path that preserves the verified edition ISBN, language and provider identity without fabricating a BnF ARK or inferring a complete series; add focused UI/API/import tests, run relevant regressions, commit, update this checkpoint with one next action, and stop. Reuse the existing lookup and keep broad title supplementation and cover validation out of scope.
+Implement real-image validation for French cover candidates using the existing image pipeline where suitable: require successful image decoding and usable dimensions, bound download size/time, reject HTML/non-images, corrupt/truncated files and known placeholder responses, add focused fixtures/tests and connect validation to the BnF cover acceptance path, run relevant regressions, commit, update this checkpoint with one next action, and stop. Keep additional cover-source expansion and broad metadata supplementation out of scope.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
