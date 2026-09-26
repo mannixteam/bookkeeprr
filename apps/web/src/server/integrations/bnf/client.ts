@@ -1,5 +1,5 @@
 import { bookEan, extractBookIdentifiers } from './identifiers';
-import { XMLParser } from 'fast-xml-parser';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 
 const SRU_BASE = 'https://catalogue.bnf.fr/api/SRU';
 const COVER_BASE = 'https://openapi.bnf.fr/couverture/image/image/recupererImage';
@@ -254,12 +254,30 @@ function parseRecord(record: unknown): ParsedRecord | null {
   };
 }
 
-function recordList(parsed: unknown): unknown[] {
-  if (!parsed || typeof parsed !== 'object') return [];
-  const root = parsed as Record<string, unknown>;
-  const response = (root.searchRetrieveResponse ?? root) as Record<string, unknown>;
-  const records = response.records as Record<string, unknown> | undefined;
-  return arr(records?.record);
+function parseSruResponse(xml: string): Record<string, unknown> {
+  // XMLParser is deliberately permissive; validate before accepting any notices.
+  const validation = XMLValidator.validate(xml);
+  if (validation !== true) {
+    throw new BnfError(`BnF SRU invalid XML: ${validation.err.code}`, 502);
+  }
+  let root: Record<string, unknown>;
+  try {
+    root = parser.parse(xml) as Record<string, unknown>;
+  } catch {
+    throw new BnfError('BnF SRU XML parse failed', 502);
+  }
+  const response = root.searchRetrieveResponse;
+  const rootNames = Object.keys(root).filter(key => !key.startsWith('?'));
+  if (rootNames.length !== 1 || rootNames[0] !== 'searchRetrieveResponse' ||
+      !response || typeof response !== 'object' || Array.isArray(response)) {
+    throw new BnfError('BnF SRU invalid response envelope', 502);
+  }
+  const result = response as Record<string, unknown>;
+  // A diagnostic invalidates the page even when it also contains records.
+  if (Object.hasOwn(result, 'diagnostics')) {
+    throw new BnfError('BnF SRU diagnostic response', 502);
+  }
+  return result;
 }
 
 function escapeCql(value: string): string {
@@ -288,20 +306,14 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
       });
       if (!res.ok) throw new BnfError(`BnF SRU HTTP ${res.status}`, res.status);
       const xml = await res.text();
-      let doc: unknown;
-      try {
-        doc = parser.parse(xml);
-      } catch (err) {
-        throw new BnfError(`BnF SRU XML parse failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
-      const rawRecords = recordList(doc);
+      const response = parseSruResponse(xml);
+      const pageRecords = response.records as Record<string, unknown> | undefined;
+      const rawRecords = arr(pageRecords?.record);
       for (const raw of rawRecords) {
         const record = parseRecord(raw);
         if (record && !records.has(record.ark)) records.set(record.ark, record);
       }
       if (rawRecords.length === 0) break;
-      const root = doc as Record<string, unknown>;
-      const response = (root.searchRetrieveResponse ?? root) as Record<string, unknown>;
       const next = Number(scalar(response.nextRecordPosition));
       const totalText = scalar(response.numberOfRecords);
       const total = totalText === null ? null : Number(totalText);
