@@ -24,7 +24,8 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Bound BnF SRU pagination and preserve results on later-page failures.
 - [x] Validate BnF SRU XML/envelopes and response-level diagnostics before accepting a page.
 - [ ] Harden the remaining BnF metadata behavior (outside the completed sessions).
-- [ ] Add reliable complementary metadata for recent French editions absent from BnF.
+- [x] Add a BnF-first French exact-ISBN lookup with Open Library edition fallback.
+- [ ] Connect complementary editions to Discover/library and expand recent French metadata beyond exact ISBN lookup.
 - [x] Separate same-title BnF works with conflicting creators/publishers and prioritize explicit series relations.
 - [x] Separate explicitly identified integral/omnibus notices from ordinary numbered volumes.
 - [ ] Harden remaining series / volume / edition grouping.
@@ -35,6 +36,45 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the French-only exact-ISBN complementary lookup NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `368201b9f15ab0400e3e21422cdf674cd4923b79`.
+Session date: 2026-09-26 (Europe/Paris).
+
+### DONE: exact-ISBN fallback
+- New read-only endpoint: `GET /api/discover/french-isbn?isbn=<ISBN-10-or-13>`, with `{ result }` (edition or null), 400 for invalid ISBN and 502 for provider failure.
+- Canonicalize/check the ISBN using the existing validator; query BnF first and require an exact eligible French comic edition before accepting its result.
+- Call Open Library only after BnF succeeds without an eligible exact edition. BnF network/HTTP/XML and later-page failures do not activate fallback. A paginated lookup that exhausts its page budget with a continuation also fails rather than asserting absence.
+- Ordinary BnF title searches retain their existing partial-result behavior; strict lookup is limited to this new path.
+- Reuse Open Library's existing injectable fetcher/rate limiter with one ISBN-edition request, no retry and a 5-second signal covering headers/body.
+- Require a valid edition key, title, matching validated ISBN/EAN, and nonempty edition-level languages entirely `/languages/fre` or `/languages/fra`. Reject unknown/missing/foreign/bilingual language and mismatched/invalid/missing identifiers.
+- Preserve provider ID, source URL and attribution. Open Library never receives a fabricated BnF ARK; no work-level language/ISBN inference occurs.
+- No cover is accepted from Open Library in this step (`coverUrl: null`); no tome ordinal or complete series is inferred (`number: null`).
+
+### Provider choice and official documentation
+Open Library already has an integration in this repository and supplies edition-level ISBN lookup without introducing new API-key configuration. Its official docs distinguish works from editions and document `/isbn/<isbn>.json`:
+- https://openlibrary.org/dev/docs/api/books (ISBN API and Works versus Editions)
+- https://openlibrary.org/about/work_edition (edition metadata fields)
+Read on 2026-09-26. Documentation retrieval was performed, not a live catalog coverage benchmark. Google Books was not added to this fallback; the existing client notes production keyless-quota failures.
+
+### Exact verification: fallback
+Initial test collection failed because the new endpoint did not exist (one failed suite, zero executed tests); no pre-fix assertion count is claimed.
+After implementation, the first 23 new tests passed. An added page-cap regression reproduced **1 failed, 23 passed**, then was fixed.
+All **24 new endpoint tests** pass: BnF priority; empty result fallback/attribution/ISBN-10 input; two ineligible BnF cases; six rejected fallback cases; equivalent returned ISBN-10; three BnF errors; later BnF page failure; four fallback errors; fallback 404; three invalid inputs; BnF page-cap failure.
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/discover/french-isbn.test.ts tests/server/integrations/openlibrary tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-editions.test.ts tests/integration/jobs/bnf-compilations.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **205 passed, 0 failed**, eighteen files (24 new + 129 previous targeted regressions + 52 existing Open Library tests).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS.
+Mocked provider responses and temporary SQLite regressions only; no full suite, CI run, live-provider coverage validation, Docker build or VM deployment.
+
+### Remaining limits
+This is a usable read-only API endpoint, not yet wired into the Discover UI or library add flow. No existing broad title search behavior was changed.
+Open Library fallback proves exact French edition identity, not comic genre or series membership; the response must not be silently treated as a complete comic series. Missing language metadata intentionally reduces coverage.
+No cross-provider title merging, cover validation, edition hydration/import, or general recent-release coverage claim is made. Existing SRU no-cursor/invalid-cursor termination rules remain unchanged.
+
+## PREVIOUS SESSION: edition-aware deduplication
 Completed the edition-aware BnF deduplication NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `23497954a9b4eecb31ca6099ff78238d00e10332`.
 Session date: 2026-09-26 (Europe/Paris).
@@ -313,6 +353,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse the completed exact-ISBN endpoint, Open Library adapter and BnF-first/error policy; do not repeat provider selection or the completed fallback investigation without a new failing case.
 - Do not repeat the completed within-group ISBN/EAN edition deduplication or library selection-preservation investigation without a new failing case; retain distinct editions and conservative no-ISBN behavior.
 - Do not repeat the completed title/type-marked integral/omnibus separation without a new failing case; preserve null individual ordinals, catalog visibility, selected-ARK isolation and existing library rows.
 - Do not repeat the completed same-title creator/publisher separation or selected-work hydration investigation without a new failing case; preserve the distinction between publisher collections and explicit series relations.
@@ -331,7 +372,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Add a French-only exact-ISBN complementary lookup for editions absent from BnF: select one suitable provider using its official API documentation and any existing integration, invoke it only after a successful BnF lookup yields no eligible exact edition, require a matching validated ISBN/EAN and explicitly French language, preserve source attribution and BnF priority, add focused fallback/foreign/mismatched-ISBN/error tests, run relevant tests, commit, update this checkpoint with one next action, and stop. Keep this step limited to ISBN lookup, not broad title/series supplementation or cover validation.
+Connect the completed French exact-ISBN lookup to Discover with a source-labelled edition result and a safe library-add path that preserves the verified edition ISBN, language and provider identity without fabricating a BnF ARK or inferring a complete series; add focused UI/API/import tests, run relevant regressions, commit, update this checkpoint with one next action, and stop. Reuse the existing lookup and keep broad title supplementation and cover validation out of scope.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
