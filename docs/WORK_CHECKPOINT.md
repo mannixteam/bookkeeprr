@@ -21,6 +21,7 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Normalize and validate BnF ISBN-10/ISBN-13/book EAN, and preserve the explicitly selected notice.
 - [x] Preserve unknown BnF ordinals and prevent unnumbered albums from creating numbered library rows.
 - [x] Require confirmed French language consistently in BnF search and direct-ARK hydration.
+- [x] Bound BnF SRU pagination and preserve results on later-page failures.
 - [ ] Harden the remaining BnF metadata behavior (outside the completed sessions).
 - [ ] Add reliable complementary metadata for recent French editions absent from BnF.
 - [ ] Harden series / volume / edition grouping.
@@ -30,6 +31,38 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the bounded BnF SRU pagination NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `3fc4b64251b905ad4ce1b2871bda4c8316c1e25e`.
+Session date: 2026-09-26 (UTC).
+
+### DONE: bounded pagination
+- Follow explicit `nextRecordPosition` cursors, preserving query and schema.
+- Stop on missing, repeated, backward, invalid or out-of-range cursors and empty pages.
+- Limit each SRU lookup to five pages and one shared 20-second AbortSignal budget covering requests and response bodies.
+- Deduplicate ARKs across pages, retaining the first parsed notice.
+- Preserve earlier results on a later network, HTTP or body-read failure; propagate first-page errors.
+- Existing language/identifier/grouping rules still apply to the accumulated notices.
+
+### Exact verification: pagination
+New focused tests before fixes: **16 failed, 1 passed (17 total)**.
+All 17 now pass: three-page retrieval/query preservation; eight invalid/non-advancing/out-of-range cursor cases; duplicate ARKs; later network/HTTP/body failures; first-page HTTP failure; five-page cap; shared timeout budget; empty-page termination.
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **73 passed, 0 failed**, eight files (17 new plus 56 existing regression tests).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS.
+Tests use mocked SRU responses; timeout verification injects an aborted signal without waiting 20 seconds. Existing hydration tests use temporary SQLite databases.
+No full suite, CI run, live BnF check, Docker build or VM deployment was performed.
+
+### Remaining pagination limits
+Results can be partial when the cap/timeout is reached or a later page fails; the current return type has no completeness indicator.
+A missing cursor ends retrieval; no continuation is guessed from `numberOfRecords` alone.
+General SRU XML/diagnostic validation remains unverified. The parser can accept non-SRU or malformed content as an empty result; address that in the next scoped session.
+The 20-second budget is per SRU lookup; hydration performs separate seed and related-notice lookups.
+
+## PREVIOUS SESSION: French-language eligibility
 Completed the French-language eligibility NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `589dfb809eb44434f612af03850d29aabfc45487`.
 Session date: 2026-09-25 (Europe/Paris).
@@ -154,6 +187,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Do not reimplement or re-audit the completed bounded pagination without a new failing case; preserve its caps, partial-result behavior and ARK deduplication.
 - Do not recreate the initial BnF integration from scratch.
 - Do not re-audit the verified French-language filtering or relax the documented missing-language policy without a new requirement or failing case.
 - Do not reintroduce inferred ordinals or repeat the completed unnumbered-album investigation without a new failing case.
@@ -167,7 +201,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Implement bounded BnF SRU pagination so search can retrieve notices beyond the first page: add focused tests for multiple pages, repeated/non-advancing cursors, duplicate ARKs and a later-page failure; retain already verified results on a later-page failure, keep an explicit page/time bound, run relevant tests, commit, update this checkpoint with one next action, and stop.
+Validate BnF SRU responses before treating them as catalog results: add focused tests for malformed XML, non-SRU responses and SRU diagnostics (first and later pages), reject first-page protocol failures explicitly while preserving earlier results on later-page failures, run relevant tests, commit, update this checkpoint with one next action, and stop.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
