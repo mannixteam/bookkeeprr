@@ -50,6 +50,7 @@ type ParsedRecord = {
   description: string | null;
   creators: string[];
   languages: string[];
+  creatorKey: string;
   comicLike: boolean;
   relations: string[];
 };
@@ -249,6 +250,8 @@ function parseRecord(record: unknown): ParsedRecord | null {
     description,
     creators: [...new Set(creators)],
     languages: langs,
+    // Contributors (e.g. a shared translator) cannot establish work identity.
+    creatorKey: JSON.stringify([...new Set(strings(dc.creator).map(norm).filter(Boolean))].sort()),
     comicLike,
     relations,
   };
@@ -363,13 +366,27 @@ function bestRelationForQuery(record: ParsedRecord, query: string): string | nul
   return candidates[0]?.raw ?? null;
 }
 
+function explicitSeriesTitle(record: ParsedRecord): string | null {
+  // A publisher's Collection label alone is not proof of a numbered series.
+  const candidates = record.relations
+    .filter(relation => /^\s*(?:appartient\s+[àa]\s*:|titre\s+d['’]ensemble\s*:?)\s*/i.test(relation))
+    .map(cleanRelation)
+    .filter(title => title.length >= 3 && title.length <= 140 && !extractArk(title))
+    .sort((a, b) => a.localeCompare(b));
+  return candidates[0] ?? null;
+}
+
 function groupTitle(record: ParsedRecord, query: string): string {
+  const explicit = explicitSeriesTitle(record);
+  if (explicit) return explicit;
   if (record.rawNumber != null) return record.baseTitle;
   return bestRelationForQuery(record, query) ?? record.baseTitle;
 }
 
 function groupKey(record: ParsedRecord, query: string): string {
-  return `${norm(groupTitle(record, query))}|${norm(record.publisher)}`;
+  // Exact normalized creator sets deliberately keep uncertain teams apart.
+  // Missing creators form their own bucket and cannot bridge known conflicts.
+  return JSON.stringify([norm(groupTitle(record, query)), norm(record.publisher), record.creatorKey]);
 }
 
 function recordQuality(record: ParsedRecord): number {
