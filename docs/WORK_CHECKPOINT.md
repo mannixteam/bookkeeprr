@@ -26,6 +26,7 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Harden the remaining BnF metadata behavior (outside the completed sessions).
 - [ ] Add reliable complementary metadata for recent French editions absent from BnF.
 - [x] Separate same-title BnF works with conflicting creators/publishers and prioritize explicit series relations.
+- [x] Separate explicitly identified integral/omnibus notices from ordinary numbered volumes.
 - [ ] Harden remaining series / volume / edition grouping.
 - [ ] Harden edition deduplication.
 - [ ] Implement multi-source French cover selection with real image validation.
@@ -33,6 +34,37 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the BnF integral/omnibus NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `8d468eb424a49e64d3d3c21ed9b7483f965485aa`.
+Session date: 2026-09-26 (Europe/Paris).
+
+### DONE: integral/omnibus separation
+- Detect `intégrale`/`integrale` (including plural) and `omnibus` in a notice's titles or declared types, ignoring accents/case. Descriptions and relations do not classify the edition.
+- Keep compilation records in separate groups, visibly labeled `Intégrales / omnibus`; keep their original titles and identifiers.
+- Set compilation individual-volume numbers to null, including when titles or relations supply a part number/range. Never expand contained volumes or infer ordinary-series ordinals.
+- Preserve distinct compilation ARKs even with identical titles instead of discarding different ISBN editions.
+- Selected-ARK hydration stays within the selected edition kind. Strip the display-only label before related SRU queries.
+- Existing null-number hydration behavior skips compilation notices when writing numbered library rows; a real-client/temporary-SQLite test verifies existing volume records and known total remain unchanged.
+
+### Exact verification: compilations
+Initial two new files: **8 failed, 2 passed (10 total)** before the fix, including an integral overwriting an existing ordinary library volume.
+An additional display-label query regression reproduced **1 failed, 9 passed** in the unit file on the intermediate implementation, then was fixed.
+All 11 new tests now pass: three title variants; type-marked identical title; compilation range; distinct ISBN compilations with identical titles; ordinary album mentioning another integral in its description; both selected-ARK edition kinds; display-label query round trip; preservation of library rows/total.
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-compilations.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **116 passed, 0 failed**, twelve files (11 new plus 105 regression tests).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS.
+Mocked SRU and temporary SQLite only; no full suite, CI run, live-provider validation, Docker build or VM deployment.
+
+### Intentional limits
+Classification is lexical: compilations without these title/type markers remain unrecognized, and an ordinary title containing the same words can be classified conservatively as a compilation.
+Compilation part labels remain in their titles; the current model has no separate compilation-part numbering or mapping to contained tomes. They are visible in catalog results but not persisted as numbered library volumes.
+Different compilation ARKs are preserved even if their ISBN matches; edition-aware duplicate consolidation remains unfinished. Ordinary groups still choose one representative per ordinal/title.
+
+## PREVIOUS SESSION: same-title work separation
 Completed the same-title BnF grouping NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `0f1f38d773af5b2811f3a9a911c201af12f23e0f`.
 Session date: 2026-09-26 (Europe/Paris).
@@ -60,7 +92,7 @@ Mocked provider responses and existing temporary SQLite tests only; no full suit
 
 ### Intentional limits
 Exact creator-set matching can split a genuine series when teams change or author metadata is incomplete. No fuzzy author identity or role matching is inferred.
-Two same-title works lacking creator distinctions may still be indistinguishable. Unnumbered collection heuristics, ambiguous multiple relations, integral/omnibus handling and full edition deduplication are not validated by this session.
+Two same-title works lacking creator distinctions may still be indistinguishable. Unnumbered collection heuristics, ambiguous multiple relations and full edition deduplication are not validated by this session. Integral/omnibus handling was addressed in the subsequent session above.
 Existing representative-edition selection still chooses one notice per ordinal/title within a group; this is not complete edition preservation.
 
 ## PREVIOUS SESSION: SRU response validation
@@ -247,6 +279,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Do not repeat the completed title/type-marked integral/omnibus separation without a new failing case; preserve null individual ordinals, catalog visibility, selected-ARK isolation and existing library rows.
 - Do not repeat the completed same-title creator/publisher separation or selected-work hydration investigation without a new failing case; preserve the distinction between publisher collections and explicit series relations.
 - Do not repeat the completed SRU syntax/envelope/response-diagnostic validation investigation without a new failing case.
 - Do not reimplement or re-audit the completed bounded pagination without a new failing case; preserve its caps, partial-result behavior and ARK deduplication.
@@ -263,7 +296,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Prevent BnF integral/omnibus editions from being merged into ordinary numbered volumes: add focused fixtures for an integral and standard albums sharing a series/title/ordinal, keep compilation notices distinguishable without inventing individual volume ordinals, verify search and selected-ARK hydration, run relevant tests, commit, update this checkpoint with one next action, and stop.
+Implement edition-aware BnF deduplication within existing work/edition-kind groups: add focused fixtures for repeated notices sharing a validated ISBN/EAN and for different valid ISBNs sharing an ordinal/title, collapse only proven duplicate editions while retaining distinct editions, preserve the explicitly selected ARK during hydration and prevent another edition from overwriting its library metadata, run relevant tests, commit, update this checkpoint with one next action, and stop.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
