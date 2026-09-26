@@ -293,7 +293,7 @@ function escapeCql(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').trim();
 }
 
-async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRecord[]> {
+async function sru(cql: string, maximumRecords = MAX_RECORDS, requireSuccess = false): Promise<ParsedRecord[]> {
   const url = new URL(SRU_BASE);
   url.searchParams.set('version', '1.2');
   url.searchParams.set('operation', 'searchRetrieve');
@@ -306,7 +306,10 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
   const records = new Map<string, ParsedRecord>();
   let startRecord = 1;
   for (let page = 0; page < MAX_PAGES; page++) {
-    if (page > 0 && signal.aborted) break;
+    if (page > 0 && signal.aborted) {
+      if (requireSuccess) throw new BnfError('BnF SRU lookup timed out', 504);
+      break;
+    }
     url.searchParams.set('startRecord', String(startRecord));
     try {
       const res = await fetch(new URL(url), {
@@ -329,10 +332,13 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
       // Never invent a cursor when the service has not supplied a valid one.
       if (!Number.isSafeInteger(next) || next <= startRecord ||
           (total !== null && Number.isSafeInteger(total) && next > total)) break;
+      if (requireSuccess && page === MAX_PAGES - 1) {
+        throw new BnfError('BnF SRU lookup incomplete: page limit reached', 502);
+      }
       startRecord = next;
     } catch (err) {
       // A later page must not discard notices already received successfully.
-      if (page > 0) break;
+      if (page > 0 && !requireSuccess) break;
       if (err instanceof BnfError) throw err;
       throw new BnfError(`BnF SRU request failed: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -541,4 +547,15 @@ export async function getFrenchComicSeries(
   const all = [...new Map([...related, seed].map((r) => [r.ark, r])).values()];
   const hits = groupRecords(all, query, seed.ark);
   return hits.find((hit) => hit.volumes.some((v) => v.ark.toLowerCase() === seedArk.toLowerCase())) ?? finalizeGroup([seed], query, seed.ark);
+}
+
+/** Exact ISBN lookup for fallback orchestration; provider errors are never absence. */
+export async function lookupFrenchComicByIsbn(input: string): Promise<BnfComicVolume | null> {
+  const ean = bookEan(input);
+  if (!ean) return null;
+  const records = await sru(`bib.isbn any "${ean}"`, MAX_RECORDS, true);
+  const eligible = records.filter(record => record.ean === ean && isConfirmedFrench(record) && record.comicLike);
+  if (!eligible.length) return null;
+  eligible.sort((a, b) => recordQuality(b) - recordQuality(a) || a.ark.localeCompare(b.ark));
+  return finalizeGroup([eligible[0]!], ean).volumes[0]!;
 }

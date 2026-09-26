@@ -1,3 +1,5 @@
+import { FrenchIsbnEditionRecord } from './schemas';
+import { bookEan } from '../bnf/identifiers';
 import {
   SearchResponse,
   WorkRecord,
@@ -399,4 +401,31 @@ export async function getOLSeriesWorks(seriesKey: string): Promise<OLSeriesWork[
   } catch {
     return [];
   }
+}
+
+/** Exact edition lookup for the French ISBN fallback. No work-level inference.
+ * API: https://openlibrary.org/dev/docs/api/books#isbn-api
+ */
+export async function getFrenchEditionByIsbn(input: string) {
+  const ean = bookEan(input);
+  if (!ean) return null;
+  await rateLimit();
+  // Keep the deadline active while reading the body, not only the headers.
+  const signal = AbortSignal.timeout(5_000);
+  let raw: unknown;
+  try {
+    const response = await activeFetcher(`${BASE}/isbn/${ean}.json`, { signal });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new OpenLibraryError(`HTTP ${response.status}`);
+    raw = JSON.parse(await response.text());
+  } catch (err) {
+    throw new OpenLibraryError('French ISBN edition lookup failed', err);
+  }
+  const parsed = FrenchIsbnEditionRecord.safeParse(raw);
+  if (!parsed.success) throw new OpenLibraryError('French ISBN edition response invalid', parsed.error);
+  const edition = parsed.data;
+  const languages = edition.languages ?? [];
+  if (languages.length === 0 || !languages.every(l => l.key === '/languages/fre' || l.key === '/languages/fra')) return null;
+  if (![...(edition.isbn_13 ?? []), ...(edition.isbn_10 ?? [])].some(id => bookEan(id) === ean)) return null;
+  return { ...edition, ean };
 }
