@@ -8,6 +8,7 @@ import type { JobKindDescriptor } from '../types';
 import { DEFAULT_TIMEOUT_MS } from '../types';
 import { getFrenchComicSeries } from '@/server/integrations/bnf';
 import { extractBnfArk } from '@/lib/bnf-marker';
+import { bookEan } from '@/server/integrations/bnf/identifiers';
 
 /** Maps a NovelUpdates `statusInCoo` string onto our series status enum. */
 function nuStatus(raw: string | null): 'releasing' | 'finished' | 'hiatus' | 'cancelled' | null {
@@ -53,9 +54,31 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
 
       const existing = await listVolumesBySeries(series.id);
       const byNumber = new Map(existing.map((v) => [v.number, v]));
-      let added = 0;
+      // The library has one row per ordinal, while the catalog retains editions.
+      const candidates = new Map<number, typeof detail.volumes>();
       for (const volume of detail.volumes) {
         if (volume.number == null) continue;
+        const list = candidates.get(volume.number) ?? [];
+        list.push(volume);
+        candidates.set(volume.number, list);
+      }
+      let added = 0;
+      for (const [number, editions] of candidates) {
+        const existingRow = byNumber.get(number);
+        let meta: Record<string, unknown> = {};
+        try {
+          const parsed: unknown = JSON.parse(existingRow?.metadataJson ?? '{}');
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) meta = parsed as Record<string, unknown>;
+        } catch { /* Unidentified local metadata does not assert an edition. */ }
+        const existingArk = typeof meta.bnfArk === 'string' ? meta.bnfArk.toLowerCase() : null;
+        const existingEan = bookEan(typeof meta.ean === 'string' ? meta.ean : '')
+          ?? bookEan(typeof meta.isbn === 'string' ? meta.isbn : '');
+        const volume = editions.find(v => v.ark.toLowerCase() === bnfArk.toLowerCase())
+          ?? editions.find(v => v.ark.toLowerCase() === existingArk)
+          ?? editions.find(v => existingEan != null && v.ean === existingEan)
+          ?? (existingArk || existingEan ? undefined : editions[0]);
+        // An absent known edition must not be replaced by another reissue.
+        if (!volume) continue;
         const metadataJson = JSON.stringify({
           source: 'bnf',
           bnfArk: volume.ark,
@@ -68,13 +91,13 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
           coverRetrievedAt: new Date().toISOString().slice(0, 10),
         });
         const releaseDate = volume.year ? new Date(`${volume.year}-01-01T00:00:00Z`) : null;
-        const row = byNumber.get(volume.number);
+        const row = byNumber.get(number);
         if (row) {
           await updateVolume(row.id, { title: volume.title, releaseDate, metadataJson });
         } else {
           await insertVolume({
             seriesId: series.id,
-            number: volume.number,
+            number,
             title: volume.title,
             releaseDate,
             metadataJson,

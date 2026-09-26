@@ -404,35 +404,35 @@ function recordQuality(record: ParsedRecord): number {
 }
 
 function chooseRecords(records: ParsedRecord[], preferredArk?: string): Array<{ record: ParsedRecord; number: number | null }> {
-  const byNumber = new Map<number, ParsedRecord>();
-  const byTitle = new Map<string, ParsedRecord>();
+  const editions = new Map<string, ParsedRecord>();
   for (const record of records) {
-    if (record.rawNumber != null) {
-      const current = byNumber.get(record.rawNumber);
-      if (!current || record.ark === preferredArk || (current.ark !== preferredArk && recordQuality(record) > recordQuality(current))) byNumber.set(record.rawNumber, record);
-    } else {
-      // Keep named albums visible, including in groups with numbered volumes.
-      // Compilation titles/part numbers do not establish edition identity.
-      const key = record.compilation ? record.ark : norm(record.title);
-      const current = byTitle.get(key);
-      if (!current || record.ark === preferredArk || (current.ark !== preferredArk && recordQuality(record) > recordQuality(current))) byTitle.set(key, record);
+    // A title or ordinal is not edition identity. Conflicting ordinals remain
+    // separate even when the catalog reuses an ISBN.
+    const key = record.ean
+      ? JSON.stringify([record.ean, record.rawNumber])
+      : `ark:${record.ark}`;
+    const current = editions.get(key);
+    if (!current || record.ark === preferredArk ||
+        (current.ark !== preferredArk && (recordQuality(record) > recordQuality(current) ||
+          (recordQuality(record) === recordQuality(current) && record.ark.localeCompare(current.ark) < 0)))) {
+      editions.set(key, record);
     }
   }
-  return [
-    ...[...byNumber.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([number, record]) => ({ record, number })),
-    ...[...byTitle.values()]
-      .sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.title.localeCompare(b.title))
-      .map(record => ({ record, number: null })),
-  ];
+  return [...editions.values()]
+    .sort((a, b) => (a.rawNumber ?? Infinity) - (b.rawNumber ?? Infinity) ||
+      Number(b.ark === preferredArk) - Number(a.ark === preferredArk) ||
+      (a.rawNumber == null && b.rawNumber == null
+        ? (a.year ?? 9999) - (b.year ?? 9999) || a.title.localeCompare(b.title)
+        : recordQuality(b) - recordQuality(a)) || a.ark.localeCompare(b.ark))
+    .map(record => ({ record, number: record.rawNumber }));
 }
 
 function finalizeGroup(records: ParsedRecord[], query: string, preferredArk?: string): BnfComicSeriesHit {
   const selected = chooseRecords(records, preferredArk);
   if (selected.length === 0) throw new BnfError('BnF series group is empty');
   const first = selected[0]!.record;
-  const canonical = selected.find(({ number }) => number === 1)?.record ?? first;
+  const canonical = selected.find(({ record }) => record.ark === preferredArk)?.record
+    ?? selected.find(({ number }) => number === 1)?.record ?? first;
   const name = groupTitle(canonical, query);
   const volumes: BnfComicVolume[] = selected.map(({ record, number }) => ({
     ark: record.ark,
@@ -451,7 +451,8 @@ function finalizeGroup(records: ParsedRecord[], query: string, preferredArk?: st
     .filter((v): v is number => v != null)
     .sort((a, b) => a - b)[0] ?? null;
   // Observed album count is distinct from the highest known ordinal.
-  const volumeCount = volumes.length;
+  const volumeCount = new Set(volumes.filter(v => v.number != null).map(v => v.number)).size
+    + volumes.filter(v => v.number == null).length;
   const attribution = `Source des métadonnées et de la couverture : Bibliothèque nationale de France (consultée le ${new Date().toISOString().slice(0, 10)}).`;
   const description = canonical.description ? `${canonical.description}\n\n${attribution}` : attribution;
   return {
