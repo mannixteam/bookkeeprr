@@ -5,6 +5,7 @@ const SRU_BASE = 'https://catalogue.bnf.fr/api/SRU';
 const COVER_BASE = 'https://openapi.bnf.fr/couverture/image/image/recupererImage';
 const TIMEOUT_MS = 20_000;
 const MAX_RECORDS = 100;
+const MAX_PAGES = 5;
 
 export class BnfError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -273,24 +274,49 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
   url.searchParams.set('recordSchema', 'dublincore');
   url.searchParams.set('maximumRecords', String(maximumRecords));
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: { accept: 'application/xml,text/xml;q=0.9,*/*;q=0.1' },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-  } catch (err) {
-    throw new BnfError(`BnF SRU request failed: ${err instanceof Error ? err.message : String(err)}`);
+  // One budget covers every request and response body in this SRU lookup.
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
+  const records = new Map<string, ParsedRecord>();
+  let startRecord = 1;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    if (page > 0 && signal.aborted) break;
+    url.searchParams.set('startRecord', String(startRecord));
+    try {
+      const res = await fetch(new URL(url), {
+        headers: { accept: 'application/xml,text/xml;q=0.9,*/*;q=0.1' },
+        signal,
+      });
+      if (!res.ok) throw new BnfError(`BnF SRU HTTP ${res.status}`, res.status);
+      const xml = await res.text();
+      let doc: unknown;
+      try {
+        doc = parser.parse(xml);
+      } catch (err) {
+        throw new BnfError(`BnF SRU XML parse failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      const rawRecords = recordList(doc);
+      for (const raw of rawRecords) {
+        const record = parseRecord(raw);
+        if (record && !records.has(record.ark)) records.set(record.ark, record);
+      }
+      if (rawRecords.length === 0) break;
+      const root = doc as Record<string, unknown>;
+      const response = (root.searchRetrieveResponse ?? root) as Record<string, unknown>;
+      const next = Number(scalar(response.nextRecordPosition));
+      const totalText = scalar(response.numberOfRecords);
+      const total = totalText === null ? null : Number(totalText);
+      // Never invent a cursor when the service has not supplied a valid one.
+      if (!Number.isSafeInteger(next) || next <= startRecord ||
+          (total !== null && Number.isSafeInteger(total) && next > total)) break;
+      startRecord = next;
+    } catch (err) {
+      // A later page must not discard notices already received successfully.
+      if (page > 0) break;
+      if (err instanceof BnfError) throw err;
+      throw new BnfError(`BnF SRU request failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
-  if (!res.ok) throw new BnfError(`BnF SRU HTTP ${res.status}`, res.status);
-  const xml = await res.text();
-  let doc: unknown;
-  try {
-    doc = parser.parse(xml);
-  } catch (err) {
-    throw new BnfError(`BnF SRU XML parse failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  return recordList(doc).map(parseRecord).filter((v): v is ParsedRecord => v !== null);
+  return [...records.values()];
 }
 
 function coverUrl(record: ParsedRecord): string {
