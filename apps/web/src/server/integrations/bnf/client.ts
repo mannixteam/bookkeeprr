@@ -6,6 +6,7 @@ const COVER_BASE = 'https://openapi.bnf.fr/couverture/image/image/recupererImage
 const TIMEOUT_MS = 20_000;
 const MAX_RECORDS = 100;
 const MAX_PAGES = 5;
+const COMPILATION_LABEL = ' — Intégrales / omnibus';
 
 export class BnfError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -51,6 +52,7 @@ type ParsedRecord = {
   creators: string[];
   languages: string[];
   creatorKey: string;
+  compilation: boolean;
   comicLike: boolean;
   relations: string[];
 };
@@ -230,6 +232,9 @@ function parseRecord(record: unknown): ParsedRecord | null {
   // A description may mention another album; it cannot identify this ordinal.
   const context = titles.join(' | ');
   const tv = titleAndVolume(title, context);
+  // Only this notice's titles/types identify a compilation; descriptions and
+  // relations may refer to other editions or to the contained ordinary tomes.
+  const compilation = /\b(?:integrales?|omnibus)\b/.test(norm([...titles, ...types].join(' ')));
   const publisher = canonicalPublisher(publishers[0] ?? null);
   const id = extractBookIdentifiers(ids);
   const description = descriptions[0] ?? null;
@@ -242,7 +247,8 @@ function parseRecord(record: unknown): ParsedRecord | null {
     ark,
     title,
     baseTitle: tv.baseTitle,
-    rawNumber: tv.number ?? relationNumber(relations),
+    rawNumber: compilation ? null : tv.number ?? relationNumber(relations),
+    compilation,
     publisher,
     year: firstYear(strings(dc.date)),
     isbn: id.isbn,
@@ -378,6 +384,10 @@ function explicitSeriesTitle(record: ParsedRecord): string | null {
 
 function groupTitle(record: ParsedRecord, query: string): string {
   const explicit = explicitSeriesTitle(record);
+  if (record.compilation) {
+    const series = explicit ?? bestRelationForQuery(record, query) ?? record.baseTitle;
+    return `${series}${COMPILATION_LABEL}`;
+  }
   if (explicit) return explicit;
   if (record.rawNumber != null) return record.baseTitle;
   return bestRelationForQuery(record, query) ?? record.baseTitle;
@@ -386,7 +396,7 @@ function groupTitle(record: ParsedRecord, query: string): string {
 function groupKey(record: ParsedRecord, query: string): string {
   // Exact normalized creator sets deliberately keep uncertain teams apart.
   // Missing creators form their own bucket and cannot bridge known conflicts.
-  return JSON.stringify([norm(groupTitle(record, query)), norm(record.publisher), record.creatorKey]);
+  return JSON.stringify([norm(groupTitle(record, query)), norm(record.publisher), record.creatorKey, record.compilation]);
 }
 
 function recordQuality(record: ParsedRecord): number {
@@ -402,7 +412,8 @@ function chooseRecords(records: ParsedRecord[], preferredArk?: string): Array<{ 
       if (!current || record.ark === preferredArk || (current.ark !== preferredArk && recordQuality(record) > recordQuality(current))) byNumber.set(record.rawNumber, record);
     } else {
       // Keep named albums visible, including in groups with numbered volumes.
-      const key = norm(record.title);
+      // Compilation titles/part numbers do not establish edition identity.
+      const key = record.compilation ? record.ark : norm(record.title);
       const current = byTitle.get(key);
       if (!current || record.ark === preferredArk || (current.ark !== preferredArk && recordQuality(record) > recordQuality(current))) byTitle.set(key, record);
     }
@@ -520,7 +531,11 @@ export async function getFrenchComicSeries(
   if (!seed) throw new BnfError(`BnF record not found: ${seedArk}`, 404);
   if (!isConfirmedFrench(seed)) throw new BnfError('BnF notice excluded: French-only language not confirmed', 422);
 
-  const query = preferredTitle?.trim() || seed.baseTitle;
+  let query = preferredTitle?.trim() || seed.baseTitle;
+  // The catalog display label is not bibliographic text to send to SRU.
+  if (seed.compilation && query.endsWith(COMPILATION_LABEL)) {
+    query = query.slice(0, -COMPILATION_LABEL.length).trim() || seed.baseTitle;
+  }
   const related = await sru(`(bib.title all "${escapeCql(query)}") and (bib.recordtype any "mon")`);
   const all = [...new Map([...related, seed].map((r) => [r.ark, r])).values()];
   const hits = groupRecords(all, query, seed.ark);
