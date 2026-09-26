@@ -18,6 +18,7 @@ import {
 } from './fixtures';
 import { RiffleLoader } from './RiffleLoader';
 import { Cover } from '@/components/Cover';
+import { FrenchIsbnLookup } from './FrenchIsbnLookup';
 import { DiscoverDetailDialog } from './DiscoverDetailDialog';
 import type { DiscoverResult } from '@/app/api/discover/search/route';
 import type { DiscoverSource } from '@/app/api/discover/sources/route';
@@ -374,6 +375,7 @@ export function DiscoverClient(_props?: { cols?: number }): React.JSX.Element {
     <div className="discover-client -m-6 flex h-[calc(100%+3rem)] flex-col">
       {/* sticky header */}
       <div className="border-b border-border bg-background px-6 pb-4 pt-6">
+        <FrenchIsbnLookup />
         <div className="mb-4 flex items-end gap-6">
           <div>
             <h1 className="app-title">Discover</h1>

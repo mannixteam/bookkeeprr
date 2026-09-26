@@ -1,9 +1,12 @@
-import { XMLParser } from 'fast-xml-parser';
+import { bookEan, extractBookIdentifiers } from './identifiers';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 
 const SRU_BASE = 'https://catalogue.bnf.fr/api/SRU';
 const COVER_BASE = 'https://openapi.bnf.fr/couverture/image/image/recupererImage';
 const TIMEOUT_MS = 20_000;
 const MAX_RECORDS = 100;
+const MAX_PAGES = 5;
+const COMPILATION_LABEL = ' — Intégrales / omnibus';
 
 export class BnfError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -14,7 +17,7 @@ export class BnfError extends Error {
 
 export type BnfComicVolume = {
   ark: string;
-  number: number;
+  number: number | null;
   title: string;
   publisher: string | null;
   year: number | null;
@@ -47,7 +50,9 @@ type ParsedRecord = {
   ean: string | null;
   description: string | null;
   creators: string[];
-  language: string | null;
+  languages: string[];
+  creatorKey: string;
+  compilation: boolean;
   comicLike: boolean;
   relations: string[];
 };
@@ -149,26 +154,6 @@ function extractArk(blob: string): string | null {
   return blob.match(/ark:\/12148\/cb[0-9a-z]+/i)?.[0] ?? null;
 }
 
-function compactDigits(value: string): string {
-  return value.replace(/[^0-9Xx]/g, '');
-}
-
-function identifiers(values: string[]): { isbn: string | null; ean: string | null } {
-  let isbn: string | null = null;
-  let ean: string | null = null;
-  for (const raw of values) {
-    const candidates = raw.match(/[0-9Xx][0-9Xx\s-]{8,20}[0-9Xx]/g) ?? [];
-    for (const candidate of candidates) {
-      const compact = compactDigits(candidate);
-      if (!ean && /^97[89]\d{10}$/.test(compact)) ean = compact;
-      if (!isbn && (/^\d{9}[\dXx]$/.test(compact) || /^97[89]\d{10}$/.test(compact))) {
-        isbn = compact;
-      }
-    }
-  }
-  return { isbn, ean };
-}
-
 function firstYear(values: string[]): number | null {
   for (const value of values) {
     const match = value.match(/\b(19\d{2}|20\d{2})\b/);
@@ -244,12 +229,15 @@ function parseRecord(record: unknown): ParsedRecord | null {
 
   const title = [...titles].map(cleanTitle).filter(Boolean).sort((a, b) => a.length - b.length)[0]!;
   if (!title) return null;
-  const context = [...titles, ...descriptions, ...relations].join(' | ');
+  // A description may mention another album; it cannot identify this ordinal.
+  const context = titles.join(' | ');
   const tv = titleAndVolume(title, context);
+  // Only this notice's titles/types identify a compilation; descriptions and
+  // relations may refer to other editions or to the contained ordinary tomes.
+  const compilation = /\b(?:integrales?|omnibus)\b/.test(norm([...titles, ...types].join(' ')));
   const publisher = canonicalPublisher(publishers[0] ?? null);
-  const id = identifiers(ids);
+  const id = extractBookIdentifiers(ids);
   const description = descriptions[0] ?? null;
-  const language = langs[0] ?? null;
   const comicHaystack = norm([...subjects, ...descriptions, ...types, publisher ?? ''].join(' '));
   const comicLike =
     /bande dessinee|comic|roman graphique|graphic novel|manga/.test(comicHaystack) ||
@@ -259,32 +247,53 @@ function parseRecord(record: unknown): ParsedRecord | null {
     ark,
     title,
     baseTitle: tv.baseTitle,
-    rawNumber: tv.number ?? relationNumber(relations),
+    rawNumber: compilation ? null : tv.number ?? relationNumber(relations),
+    compilation,
     publisher,
     year: firstYear(strings(dc.date)),
     isbn: id.isbn,
     ean: id.ean,
     description,
     creators: [...new Set(creators)],
-    language,
+    languages: langs,
+    // Contributors (e.g. a shared translator) cannot establish work identity.
+    creatorKey: JSON.stringify([...new Set(strings(dc.creator).map(norm).filter(Boolean))].sort()),
     comicLike,
     relations,
   };
 }
 
-function recordList(parsed: unknown): unknown[] {
-  if (!parsed || typeof parsed !== 'object') return [];
-  const root = parsed as Record<string, unknown>;
-  const response = (root.searchRetrieveResponse ?? root) as Record<string, unknown>;
-  const records = response.records as Record<string, unknown> | undefined;
-  return arr(records?.record);
+function parseSruResponse(xml: string): Record<string, unknown> {
+  // XMLParser is deliberately permissive; validate before accepting any notices.
+  const validation = XMLValidator.validate(xml);
+  if (validation !== true) {
+    throw new BnfError(`BnF SRU invalid XML: ${validation.err.code}`, 502);
+  }
+  let root: Record<string, unknown>;
+  try {
+    root = parser.parse(xml) as Record<string, unknown>;
+  } catch {
+    throw new BnfError('BnF SRU XML parse failed', 502);
+  }
+  const response = root.searchRetrieveResponse;
+  const rootNames = Object.keys(root).filter(key => !key.startsWith('?'));
+  if (rootNames.length !== 1 || rootNames[0] !== 'searchRetrieveResponse' ||
+      !response || typeof response !== 'object' || Array.isArray(response)) {
+    throw new BnfError('BnF SRU invalid response envelope', 502);
+  }
+  const result = response as Record<string, unknown>;
+  // A diagnostic invalidates the page even when it also contains records.
+  if (Object.hasOwn(result, 'diagnostics')) {
+    throw new BnfError('BnF SRU diagnostic response', 502);
+  }
+  return result;
 }
 
 function escapeCql(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').trim();
 }
 
-async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRecord[]> {
+async function sru(cql: string, maximumRecords = MAX_RECORDS, requireSuccess = false): Promise<ParsedRecord[]> {
   const url = new URL(SRU_BASE);
   url.searchParams.set('version', '1.2');
   url.searchParams.set('operation', 'searchRetrieve');
@@ -292,28 +301,53 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS): Promise<ParsedRec
   url.searchParams.set('recordSchema', 'dublincore');
   url.searchParams.set('maximumRecords', String(maximumRecords));
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: { accept: 'application/xml,text/xml;q=0.9,*/*;q=0.1' },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-  } catch (err) {
-    throw new BnfError(`BnF SRU request failed: ${err instanceof Error ? err.message : String(err)}`);
+  // One budget covers every request and response body in this SRU lookup.
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
+  const records = new Map<string, ParsedRecord>();
+  let startRecord = 1;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    if (page > 0 && signal.aborted) {
+      if (requireSuccess) throw new BnfError('BnF SRU lookup timed out', 504);
+      break;
+    }
+    url.searchParams.set('startRecord', String(startRecord));
+    try {
+      const res = await fetch(new URL(url), {
+        headers: { accept: 'application/xml,text/xml;q=0.9,*/*;q=0.1' },
+        signal,
+      });
+      if (!res.ok) throw new BnfError(`BnF SRU HTTP ${res.status}`, res.status);
+      const xml = await res.text();
+      const response = parseSruResponse(xml);
+      const pageRecords = response.records as Record<string, unknown> | undefined;
+      const rawRecords = arr(pageRecords?.record);
+      for (const raw of rawRecords) {
+        const record = parseRecord(raw);
+        if (record && !records.has(record.ark)) records.set(record.ark, record);
+      }
+      if (rawRecords.length === 0) break;
+      const next = Number(scalar(response.nextRecordPosition));
+      const totalText = scalar(response.numberOfRecords);
+      const total = totalText === null ? null : Number(totalText);
+      // Never invent a cursor when the service has not supplied a valid one.
+      if (!Number.isSafeInteger(next) || next <= startRecord ||
+          (total !== null && Number.isSafeInteger(total) && next > total)) break;
+      if (requireSuccess && page === MAX_PAGES - 1) {
+        throw new BnfError('BnF SRU lookup incomplete: page limit reached', 502);
+      }
+      startRecord = next;
+    } catch (err) {
+      // A later page must not discard notices already received successfully.
+      if (page > 0 && !requireSuccess) break;
+      if (err instanceof BnfError) throw err;
+      throw new BnfError(`BnF SRU request failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
-  if (!res.ok) throw new BnfError(`BnF SRU HTTP ${res.status}`, res.status);
-  const xml = await res.text();
-  let doc: unknown;
-  try {
-    doc = parser.parse(xml);
-  } catch (err) {
-    throw new BnfError(`BnF SRU XML parse failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  return recordList(doc).map(parseRecord).filter((v): v is ParsedRecord => v !== null);
+  return [...records.values()];
 }
 
 function coverUrl(record: ParsedRecord): string {
-  const isbn = record.isbn ?? record.ean;
+  const isbn = record.ean;
   if (isbn) {
     return `https://bdi.dlpdomain.com/album/${isbn}/couv/M385x862/cover.jpg`;
   }
@@ -344,51 +378,67 @@ function bestRelationForQuery(record: ParsedRecord, query: string): string | nul
   return candidates[0]?.raw ?? null;
 }
 
+function explicitSeriesTitle(record: ParsedRecord): string | null {
+  // A publisher's Collection label alone is not proof of a numbered series.
+  const candidates = record.relations
+    .filter(relation => /^\s*(?:appartient\s+[àa]\s*:|titre\s+d['’]ensemble\s*:?)\s*/i.test(relation))
+    .map(cleanRelation)
+    .filter(title => title.length >= 3 && title.length <= 140 && !extractArk(title))
+    .sort((a, b) => a.localeCompare(b));
+  return candidates[0] ?? null;
+}
+
 function groupTitle(record: ParsedRecord, query: string): string {
+  const explicit = explicitSeriesTitle(record);
+  if (record.compilation) {
+    const series = explicit ?? bestRelationForQuery(record, query) ?? record.baseTitle;
+    return `${series}${COMPILATION_LABEL}`;
+  }
+  if (explicit) return explicit;
   if (record.rawNumber != null) return record.baseTitle;
   return bestRelationForQuery(record, query) ?? record.baseTitle;
 }
 
 function groupKey(record: ParsedRecord, query: string): string {
-  return `${norm(groupTitle(record, query))}|${norm(record.publisher)}`;
+  // Exact normalized creator sets deliberately keep uncertain teams apart.
+  // Missing creators form their own bucket and cannot bridge known conflicts.
+  return JSON.stringify([norm(groupTitle(record, query)), norm(record.publisher), record.creatorKey, record.compilation]);
 }
 
 function recordQuality(record: ParsedRecord): number {
   return (record.ean ? 8 : 0) + (record.isbn ? 4 : 0) + (record.description ? 2 : 0) + (record.year ?? 0) / 10000;
 }
 
-function chooseRecords(records: ParsedRecord[]): Array<{ record: ParsedRecord; number: number }> {
-  const hasNumbered = records.some((r) => r.rawNumber != null);
-  if (hasNumbered) {
-    const byNumber = new Map<number, ParsedRecord>();
-    for (const record of records) {
-      if (record.rawNumber == null) continue;
-      const current = byNumber.get(record.rawNumber);
-      if (!current || recordQuality(record) > recordQuality(current)) byNumber.set(record.rawNumber, record);
-    }
-    return [...byNumber.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([number, record]) => ({ record, number }));
-  }
-
-  // Named albums (classic Franco-Belgian series) often have several reissues in
-  // BnF. Keep one record per album title, then infer order from first publication year.
-  const byTitle = new Map<string, ParsedRecord>();
+function chooseRecords(records: ParsedRecord[], preferredArk?: string): Array<{ record: ParsedRecord; number: number | null }> {
+  const editions = new Map<string, ParsedRecord>();
   for (const record of records) {
-    const key = norm(record.title);
-    const current = byTitle.get(key);
-    if (!current || recordQuality(record) > recordQuality(current)) byTitle.set(key, record);
+    // A title or ordinal is not edition identity. Conflicting ordinals remain
+    // separate even when the catalog reuses an ISBN.
+    const key = record.ean
+      ? JSON.stringify([record.ean, record.rawNumber])
+      : `ark:${record.ark}`;
+    const current = editions.get(key);
+    if (!current || record.ark === preferredArk ||
+        (current.ark !== preferredArk && (recordQuality(record) > recordQuality(current) ||
+          (recordQuality(record) === recordQuality(current) && record.ark.localeCompare(current.ark) < 0)))) {
+      editions.set(key, record);
+    }
   }
-  return [...byTitle.values()]
-    .sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.title.localeCompare(b.title))
-    .map((record, index) => ({ record, number: index + 1 }));
+  return [...editions.values()]
+    .sort((a, b) => (a.rawNumber ?? Infinity) - (b.rawNumber ?? Infinity) ||
+      Number(b.ark === preferredArk) - Number(a.ark === preferredArk) ||
+      (a.rawNumber == null && b.rawNumber == null
+        ? (a.year ?? 9999) - (b.year ?? 9999) || a.title.localeCompare(b.title)
+        : recordQuality(b) - recordQuality(a)) || a.ark.localeCompare(b.ark))
+    .map(record => ({ record, number: record.rawNumber }));
 }
 
-function finalizeGroup(records: ParsedRecord[], query: string): BnfComicSeriesHit {
-  const selected = chooseRecords(records);
+function finalizeGroup(records: ParsedRecord[], query: string, preferredArk?: string): BnfComicSeriesHit {
+  const selected = chooseRecords(records, preferredArk);
   if (selected.length === 0) throw new BnfError('BnF series group is empty');
   const first = selected[0]!.record;
-  const canonical = selected.find(({ number }) => number === 1)?.record ?? first;
+  const canonical = selected.find(({ record }) => record.ark === preferredArk)?.record
+    ?? selected.find(({ number }) => number === 1)?.record ?? first;
   const name = groupTitle(canonical, query);
   const volumes: BnfComicVolume[] = selected.map(({ record, number }) => ({
     ark: record.ark,
@@ -406,7 +456,9 @@ function finalizeGroup(records: ParsedRecord[], query: string): BnfComicSeriesHi
     .map(({ record }) => record.year)
     .filter((v): v is number => v != null)
     .sort((a, b) => a - b)[0] ?? null;
-  const volumeCount = Math.max(volumes.length, ...volumes.map((v) => v.number));
+  // Observed album count is distinct from the highest known ordinal.
+  const volumeCount = new Set(volumes.filter(v => v.number != null).map(v => v.number)).size
+    + volumes.filter(v => v.number == null).length;
   const attribution = `Source des métadonnées et de la couverture : Bibliothèque nationale de France (consultée le ${new Date().toISOString().slice(0, 10)}).`;
   const description = canonical.description ? `${canonical.description}\n\n${attribution}` : attribution;
   return {
@@ -421,9 +473,21 @@ function finalizeGroup(records: ParsedRecord[], query: string): BnfComicSeriesHi
   };
 }
 
-function groupRecords(records: ParsedRecord[], query: string): BnfComicSeriesHit[] {
+/** French-only catalog policy: every declared content language must be French.
+ * Missing, indeterminate, unsupported and bilingual declarations are not proof
+ * of a French-only edition. Never infer language from the publisher or title.
+ */
+function isConfirmedFrench(record: ParsedRecord): boolean {
+  return record.languages.length > 0 && record.languages.every(raw => {
+    const value = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    return ['fr', 'fre', 'fra', 'francais', 'french'].includes(value) || /^fr[-_][a-z]{2}$/.test(value);
+  });
+}
+
+function groupRecords(records: ParsedRecord[], query: string, preferredArk?: string): BnfComicSeriesHit[] {
   const groups = new Map<string, ParsedRecord[]>();
   for (const record of records) {
+    if (!isConfirmedFrench(record)) continue;
     if (!record.comicLike && !publisherLooksComic(record.publisher)) continue;
     const title = groupTitle(record, query);
     if (!norm(title)) continue;
@@ -436,9 +500,9 @@ function groupRecords(records: ParsedRecord[], query: string): BnfComicSeriesHit
   const q = norm(query);
   return [...groups.values()]
     .map((records) => {
-      const hit = finalizeGroup(records, query);
+      const hit = finalizeGroup(records, query, preferredArk);
       const title = norm(hit.name);
-      const french = records.some((r) => /^(fre|fr|fra)\b|francais/i.test(norm(r.language)));
+      const french = records.some(isConfirmedFrench);
       let score = 0;
       if (title === q) score += 100;
       else if (title.startsWith(q) || q.startsWith(title)) score += 60;
@@ -458,7 +522,8 @@ function groupRecords(records: ParsedRecord[], query: string): BnfComicSeriesHit
 export async function searchFrenchComicSeries(query: string): Promise<BnfComicSeriesHit[]> {
   const q = query.trim();
   if (q.length < 2) return [];
-  const cql = `(bib.title all "${escapeCql(q)}") and (bib.recordtype any "mon")`;
+  const ean = bookEan(q);
+  const cql = ean ? `bib.isbn any "${ean}"` : `(bib.title all "${escapeCql(q)}") and (bib.recordtype any "mon")`;
   const records = await sru(cql);
   return groupRecords(records, q);
 }
@@ -469,12 +534,28 @@ export async function getFrenchComicSeries(
 ): Promise<BnfComicSeriesHit> {
   if (!/^ark:\/12148\/cb[0-9a-z]+$/i.test(seedArk)) throw new BnfError('invalid BnF ARK');
   const seedRecords = await sru(`bib.persistentid any "${escapeCql(seedArk)}"`, 5);
-  const seed = seedRecords.find((r) => r.ark.toLowerCase() === seedArk.toLowerCase()) ?? seedRecords[0];
+  const seed = seedRecords.find((r) => r.ark.toLowerCase() === seedArk.toLowerCase());
   if (!seed) throw new BnfError(`BnF record not found: ${seedArk}`, 404);
+  if (!isConfirmedFrench(seed)) throw new BnfError('BnF notice excluded: French-only language not confirmed', 422);
 
-  const query = preferredTitle?.trim() || seed.baseTitle;
+  let query = preferredTitle?.trim() || seed.baseTitle;
+  // The catalog display label is not bibliographic text to send to SRU.
+  if (seed.compilation && query.endsWith(COMPILATION_LABEL)) {
+    query = query.slice(0, -COMPILATION_LABEL.length).trim() || seed.baseTitle;
+  }
   const related = await sru(`(bib.title all "${escapeCql(query)}") and (bib.recordtype any "mon")`);
-  const all = [...new Map([seed, ...related].map((r) => [r.ark, r])).values()];
-  const hits = groupRecords(all, query);
-  return hits.find((hit) => hit.volumes.some((v) => v.ark.toLowerCase() === seedArk.toLowerCase())) ?? hits[0] ?? finalizeGroup([seed], query);
+  const all = [...new Map([...related, seed].map((r) => [r.ark, r])).values()];
+  const hits = groupRecords(all, query, seed.ark);
+  return hits.find((hit) => hit.volumes.some((v) => v.ark.toLowerCase() === seedArk.toLowerCase())) ?? finalizeGroup([seed], query, seed.ark);
+}
+
+/** Exact ISBN lookup for fallback orchestration; provider errors are never absence. */
+export async function lookupFrenchComicByIsbn(input: string): Promise<BnfComicVolume | null> {
+  const ean = bookEan(input);
+  if (!ean) return null;
+  const records = await sru(`bib.isbn any "${ean}"`, MAX_RECORDS, true);
+  const eligible = records.filter(record => record.ean === ean && isConfirmedFrench(record) && record.comicLike);
+  if (!eligible.length) return null;
+  eligible.sort((a, b) => recordQuality(b) - recordQuality(a) || a.ark.localeCompare(b.ark));
+  return finalizeGroup([eligible[0]!], ean).volumes[0]!;
 }
