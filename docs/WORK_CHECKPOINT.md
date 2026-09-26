@@ -25,13 +25,45 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Validate BnF SRU XML/envelopes and response-level diagnostics before accepting a page.
 - [ ] Harden the remaining BnF metadata behavior (outside the completed sessions).
 - [ ] Add reliable complementary metadata for recent French editions absent from BnF.
-- [ ] Harden series / volume / edition grouping.
+- [x] Separate same-title BnF works with conflicting creators/publishers and prioritize explicit series relations.
+- [ ] Harden remaining series / volume / edition grouping.
 - [ ] Harden edition deduplication.
 - [ ] Implement multi-source French cover selection with real image validation.
 - [ ] Expand French BD/comics/manga automated tests and CI coverage.
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the same-title BnF grouping NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `0f1f38d773af5b2811f3a9a911c201af12f23e0f`.
+Session date: 2026-09-26 (Europe/Paris).
+
+### DONE: same-title work separation
+- Group by normalized series title, publisher and exact normalized primary-creator set before choosing representative editions.
+- Creator normalization ignores case, accents, punctuation, duplicates and ordering. Contributors remain displayed but cannot establish work identity.
+- Missing primary creators form a separate bucket, so they cannot bridge conflicting known authors; response order does not change this separation.
+- Explicit `Titre d’ensemble` and `Appartient à` relations take precedence over album titles and query matching, including numbered albums.
+- A `Collection` label alone does not override numbered album titles. Existing query-related heuristics for unnumbered albums remain.
+- Conflicting publishers stay separate even with shared creators/relations. Hydration retains the selected ARK and excludes volumes from conflicting works.
+
+### Exact verification: grouping
+Initial eight focused tests: **6 failed, 2 passed** before the fix.
+A ninth regression test then reproduced **1 failed, 8 passed** on the intermediate implementation: a shared publisher collection incorrectly merged different numbered series. Fixed by limiting authoritative relation labels to `Titre d’ensemble`/`Appartient à`; the conflicting-series fixture now uses the explicit `Titre d’ensemble` label.
+All nine cases in `tests/server/integrations/bnf/grouping.test.ts` now pass: conflicting creators; conflicting publishers; explicit series precedence; conflicting series relations; missing-author bridge/order; normalized creator match; shared contributor with conflicting creators; selected-work hydration; publisher collection versus numbered series.
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **105 passed, 0 failed**, ten files (9 new plus 96 regression tests).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS.
+Mocked provider responses and existing temporary SQLite tests only; no full suite, CI run, live-provider validation, Docker build or VM deployment.
+
+### Intentional limits
+Exact creator-set matching can split a genuine series when teams change or author metadata is incomplete. No fuzzy author identity or role matching is inferred.
+Two same-title works lacking creator distinctions may still be indistinguishable. Unnumbered collection heuristics, ambiguous multiple relations, integral/omnibus handling and full edition deduplication are not validated by this session.
+Existing representative-edition selection still chooses one notice per ordinal/title within a group; this is not complete edition preservation.
+
+## PREVIOUS SESSION: SRU response validation
 Completed the BnF SRU response-validation NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `df4d057a29a605d6e5868bf2c946d96239588d07`.
 Session date: 2026-09-26 (Europe/Paris).
@@ -215,6 +247,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Do not repeat the completed same-title creator/publisher separation or selected-work hydration investigation without a new failing case; preserve the distinction between publisher collections and explicit series relations.
 - Do not repeat the completed SRU syntax/envelope/response-diagnostic validation investigation without a new failing case.
 - Do not reimplement or re-audit the completed bounded pagination without a new failing case; preserve its caps, partial-result behavior and ARK deduplication.
 - Do not recreate the initial BnF integration from scratch.
@@ -230,7 +263,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Prevent BnF series grouping from merging unrelated works that share a title: add focused failing fixtures for same-title works with conflicting creators or publishers, prioritize explicit series relations and conservatively separate conflicting groups while preserving existing selected-ARK behavior, run relevant tests, commit, update this checkpoint with one next action, and stop.
+Prevent BnF integral/omnibus editions from being merged into ordinary numbered volumes: add focused fixtures for an integral and standard albums sharing a series/title/ordinal, keep compilation notices distinguishable without inventing individual volume ordinals, verify search and selected-ARK hydration, run relevant tests, commit, update this checkpoint with one next action, and stop.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
