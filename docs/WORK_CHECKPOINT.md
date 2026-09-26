@@ -22,6 +22,7 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Preserve unknown BnF ordinals and prevent unnumbered albums from creating numbered library rows.
 - [x] Require confirmed French language consistently in BnF search and direct-ARK hydration.
 - [x] Bound BnF SRU pagination and preserve results on later-page failures.
+- [x] Validate BnF SRU XML/envelopes and response-level diagnostics before accepting a page.
 - [ ] Harden the remaining BnF metadata behavior (outside the completed sessions).
 - [ ] Add reliable complementary metadata for recent French editions absent from BnF.
 - [ ] Harden series / volume / edition grouping.
@@ -31,6 +32,33 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the BnF SRU response-validation NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `df4d057a29a605d6e5868bf2c946d96239588d07`.
+Session date: 2026-09-26 (Europe/Paris).
+
+### DONE: SRU response validation
+- Validate XML syntax before parsing; reject empty, plain-text, malformed and truncated bodies.
+- Require a single object-valued `searchRetrieveResponse` envelope; reject HTML, bare records, unrelated envelopes and repeated response roots.
+- Reject response-level `diagnostics`, including when records coexist with the diagnostic, before accepting any notice from that page.
+- Report first-page protocol errors as `BnfError` status 502, including direct-ARK seed lookup (not a misleading 404).
+- Preserve verified earlier pages on later-page protocol failures using the existing pagination error policy.
+- Accept legitimate zero-result responses, namespace-prefixed SRU envelopes and XML declarations.
+
+### Exact verification: SRU protocol
+New tests before fixes: **15 failed, 8 passed (23 total)** in `tests/server/integrations/bnf/protocol.test.ts`; all 23 now pass.
+The 10 response cases each run on the first and a later page: truncated XML, mismatched tags, empty body, plain text, HTML, wrong envelope containing records, bare records, multiple response roots, diagnostics alone, diagnostics with records.
+Additional cases: legitimate empty result, namespace-prefixed envelope/XML declaration, direct-ARK protocol failure.
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **96 passed, 0 failed**, nine files (23 new plus 73 regression tests).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS.
+Tests use mocked responses and existing temporary SQLite integration tests. No full suite, CI run, live-provider check, Docker build or VM deployment was performed.
+Validation covers XML syntax, the response envelope and response-level diagnostics; it is not full SRU schema or individual bibliographic-record validation. Existing partial-result and pagination limits remain.
+
+## PREVIOUS SESSION: bounded pagination
 Completed the bounded BnF SRU pagination NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `3fc4b64251b905ad4ce1b2871bda4c8316c1e25e`.
 Session date: 2026-09-26 (UTC).
@@ -59,7 +87,7 @@ No full suite, CI run, live BnF check, Docker build or VM deployment was perform
 ### Remaining pagination limits
 Results can be partial when the cap/timeout is reached or a later page fails; the current return type has no completeness indicator.
 A missing cursor ends retrieval; no continuation is guessed from `numberOfRecords` alone.
-General SRU XML/diagnostic validation remains unverified. The parser can accept non-SRU or malformed content as an empty result; address that in the next scoped session.
+At this earlier checkpoint, SRU XML/diagnostic validation was unverified; the subsequent response-validation session above resolves malformed XML, non-SRU envelopes and response-level diagnostics.
 The 20-second budget is per SRU lookup; hydration performs separate seed and related-notice lookups.
 
 ## PREVIOUS SESSION: French-language eligibility
@@ -187,6 +215,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Do not repeat the completed SRU syntax/envelope/response-diagnostic validation investigation without a new failing case.
 - Do not reimplement or re-audit the completed bounded pagination without a new failing case; preserve its caps, partial-result behavior and ARK deduplication.
 - Do not recreate the initial BnF integration from scratch.
 - Do not re-audit the verified French-language filtering or relax the documented missing-language policy without a new requirement or failing case.
@@ -201,7 +230,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Validate BnF SRU responses before treating them as catalog results: add focused tests for malformed XML, non-SRU responses and SRU diagnostics (first and later pages), reject first-page protocol failures explicitly while preserving earlier results on later-page failures, run relevant tests, commit, update this checkpoint with one next action, and stop.
+Prevent BnF series grouping from merging unrelated works that share a title: add focused failing fixtures for same-title works with conflicting creators or publishers, prioritize explicit series relations and conservatively separate conflicting groups while preserving existing selected-ARK behavior, run relevant tests, commit, update this checkpoint with one next action, and stop.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
