@@ -28,12 +28,46 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Separate same-title BnF works with conflicting creators/publishers and prioritize explicit series relations.
 - [x] Separate explicitly identified integral/omnibus notices from ordinary numbered volumes.
 - [ ] Harden remaining series / volume / edition grouping.
-- [ ] Harden edition deduplication.
+- [x] Deduplicate BnF editions within existing work/kind groups and preserve selected library metadata.
+- [ ] Validate cross-provider edition deduplication when complementary sources are added.
 - [ ] Implement multi-source French cover selection with real image validation.
 - [ ] Expand French BD/comics/manga automated tests and CI coverage.
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the edition-aware BnF deduplication NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `23497954a9b4eecb31ca6099ff78238d00e10332`.
+Session date: 2026-09-26 (Europe/Paris).
+
+### DONE: edition-aware deduplication
+- Within an existing work/edition-kind group, collapse notices only on a shared validated canonical EAN and matching ordinal (including null). ISBN-10 and its equivalent ISBN-13 identify the same edition.
+- Keep different EANs and notices without valid ISBNs separate; title/ordinal equality alone never proves duplication. Conflicting ordinals remain separate even with the same ISBN.
+- Choose duplicate representatives deterministically by existing metadata quality, then ARK; an explicitly selected ARK always wins its duplicate bucket and supplies the hydrated group's primary metadata.
+- Catalog volumes retain distinct editions. `volumeCount` counts distinct explicit ordinals plus retained unnumbered editions; multiple editions of one numbered tome do not inflate the count.
+- Hydration writes at most one row per ordinal: selected ARK first, existing row ARK next, equivalent existing ISBN/EAN next, otherwise the first deterministic catalog candidate for an unidentified/new row.
+- If a known existing edition has no matching candidate, leave its row untouched rather than replacing it with another reissue.
+- No database schema change. Null-number/compilation behavior remains unchanged.
+
+### Exact verification: editions
+Initial focused unit/integration tests: **8 failed, 4 passed (12 total)** before fixes.
+Added one integration test for matching an existing ISBN-10 to its canonical EAN among multiple candidate editions; it passes.
+All 13 new cases pass: duplicate editions across three title/kind variants; distinct ISBNs across two title/ordinal cases; two missing/invalid identifier cases; conflicting ordinals with a shared ISBN; order-independent representative choice; selected-ARK deduplication; repeated hydration with one row per ordinal; preservation of an absent existing edition; existing ISBN-10/EAN matching.
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-editions.test.ts tests/integration/jobs/bnf-compilations.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **129 passed, 0 failed**, fourteen files (13 new plus 116 regression tests).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS.
+Mocked SRU and temporary SQLite only; no full suite, CI run, live-provider validation, Docker build or VM deployment.
+
+### Intentional limits
+Deduplication remains scoped to the existing work/publisher/creator/kind groups. Cross-provider deduplication is not implemented.
+The library still stores one edition per ordinal; other editions remain in catalog results. There is no new edition-picker UI in this session.
+No valid ISBN means no cross-ARK merge. Unnumbered editions cannot reliably establish a unique album count; they remain separately counted and are not persisted as numbered rows.
+Matching EAN with a conflicting ordinal remains separate to avoid losing conflicting catalog information. No fuzzy identity or ISBN extraction changes were made.
+
+## PREVIOUS SESSION: integral/omnibus separation
 Completed the BnF integral/omnibus NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `8d468eb424a49e64d3d3c21ed9b7483f965485aa`.
 Session date: 2026-09-26 (Europe/Paris).
@@ -62,7 +96,7 @@ Mocked SRU and temporary SQLite only; no full suite, CI run, live-provider valid
 ### Intentional limits
 Classification is lexical: compilations without these title/type markers remain unrecognized, and an ordinary title containing the same words can be classified conservatively as a compilation.
 Compilation part labels remain in their titles; the current model has no separate compilation-part numbering or mapping to contained tomes. They are visible in catalog results but not persisted as numbered library volumes.
-Different compilation ARKs are preserved even if their ISBN matches; edition-aware duplicate consolidation remains unfinished. Ordinary groups still choose one representative per ordinal/title.
+At this checkpoint, different compilation ARKs were preserved even with matching ISBNs and ordinary groups chose one representative per ordinal/title. The subsequent edition-aware session above replaces that behavior with validated ISBN/EAN deduplication and distinct-edition retention.
 
 ## PREVIOUS SESSION: same-title work separation
 Completed the same-title BnF grouping NEXT ACTION on `chore/work-checkpoint-system`.
@@ -279,6 +313,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Do not repeat the completed within-group ISBN/EAN edition deduplication or library selection-preservation investigation without a new failing case; retain distinct editions and conservative no-ISBN behavior.
 - Do not repeat the completed title/type-marked integral/omnibus separation without a new failing case; preserve null individual ordinals, catalog visibility, selected-ARK isolation and existing library rows.
 - Do not repeat the completed same-title creator/publisher separation or selected-work hydration investigation without a new failing case; preserve the distinction between publisher collections and explicit series relations.
 - Do not repeat the completed SRU syntax/envelope/response-diagnostic validation investigation without a new failing case.
@@ -296,7 +331,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Implement edition-aware BnF deduplication within existing work/edition-kind groups: add focused fixtures for repeated notices sharing a validated ISBN/EAN and for different valid ISBNs sharing an ordinal/title, collapse only proven duplicate editions while retaining distinct editions, preserve the explicitly selected ARK during hydration and prevent another edition from overwriting its library metadata, run relevant tests, commit, update this checkpoint with one next action, and stop.
+Add a French-only exact-ISBN complementary lookup for editions absent from BnF: select one suitable provider using its official API documentation and any existing integration, invoke it only after a successful BnF lookup yields no eligible exact edition, require a matching validated ISBN/EAN and explicitly French language, preserve source attribution and BnF priority, add focused fallback/foreign/mismatched-ISBN/error tests, run relevant tests, commit, update this checkpoint with one next action, and stop. Keep this step limited to ISBN lookup, not broad title/series supplementation or cover validation.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
