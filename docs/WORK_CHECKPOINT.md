@@ -33,11 +33,47 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Deduplicate BnF editions within existing work/kind groups and preserve selected library metadata.
 - [ ] Validate cross-provider edition deduplication when complementary sources are added.
 - [x] Validate existing BnF/DLP cover candidates at the image serving/cache boundary.
-- [ ] Implement multi-source French cover selection and provider-specific placeholder fixtures.
+- [x] Implement ordered BnF-to-DLP cover fallback for the selected edition.
+- [ ] Add provider-specific illustrated-placeholder fixtures/recognition.
 - [ ] Expand French BD/comics/manga automated tests and CI coverage.
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the ordered BnF/DLP cover fallback NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `9fed41a10026b6b1ccb13e8129642d4db7d35fcd`.
+Session date: 2026-09-27 (Europe/Paris).
+
+### DONE: edition-bound cover fallback
+- BnF search, exact-ISBN lookup and hydration now generate a local `/api/img?bnfArk=...&ean=...` image URL from the same selected notice. The optional EAN is already canonical; missing identifiers never trigger title matching or another edition's ISBN.
+- The image endpoint builds exactly two possible candidates, in order: BnF ARK service, then DLP canonical-EAN service. Without an EAN, only BnF is tried.
+- Each candidate uses the completed French image decoder/downloader/cache path. Advance only after failure/rejection; stop at the first validated image. Both failures return 502/no-store and the existing UI fallback.
+- Validate ARK syntax and canonical EAN at the endpoint; reject malformed/duplicate identifier parameters or mixed `u`/edition requests before network access.
+- Successful edition image responses include `x-cover-source` (`bnf` or `dlp`) and `x-cover-source-url` for the accepted candidate, also on cache hits. Cross-host redirects are rejected by this serving path so a redirect cannot silently switch the attributed provider.
+- Hydrated volume metadata stores the ordered `coverCandidates`; `coverSource` and `coverRetrievedAt` are null until an actual image retrieval. Removed the prior unconditional BnF attribution and fabricated image-retrieval date from bibliographic hydration.
+- Reuse per-candidate validated caches. BnF is tried before a cached DLP fallback; purging an edition URL expands to both candidate URLs. Local edition URLs pass through the Cover component unchanged.
+- The selected series cover and volume cover keep the same selected ARK/EAN despite newer reissues. No database migration, additional provider, metadata supplementation or production changes.
+
+### Exact verification: ordered covers
+First focused run: **103 passed, 0 failed**, seven files (image tests, ISBN tests and edition hydration). TypeScript passed.
+Final run includes **18 new cases**: 16 endpoint fallback/identity/provenance cases, one selected-edition hydration case, one component local-URL case.
+Updated existing ISBN cover-URL assertions to check the new exact ARK/EAN route, including no EAN parameter for invalid ISBNs; identifier assertions remain intact.
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/images tests/components/french-cover.test.tsx tests/components/french-isbn.test.tsx tests/components/discover-empty.test.tsx tests/integration/jobs/french-edition-add.test.ts tests/server/discover/french-isbn.test.ts tests/server/integrations/openlibrary tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-editions.test.ts tests/integration/jobs/bnf-compilations.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **307 passed, 0 failed**, twenty-seven files (289 previous + 18 new).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck` and `git diff --check`: PASS.
+Tests use generated real image bytes, mocked upstream requests, fake deadline timers, jsdom and temporary SQLite. No live-provider request, visual browser review, full suite, remote CI verification, Docker build or VM deployment.
+
+### Intentional limits: ordered covers
+Attribution records the accepted candidate provider/URL in the HTTP response; no image fetch updates the database and no UI source badge was added. Database cover fields describe candidates, not a persisted successful selection.
+Existing stored single-source URLs continue to work but gain both candidates only after normal BnF metadata hydration; no bulk migration runs. The separate exact-ISBN edition-only add path continues to leave covers unset.
+The endpoint validates identifier syntax, not the bibliographic association of arbitrary manually supplied ARK/EAN pairs. Application-generated pairs come from one selected BnF notice; image retrieval makes no database writes.
+Two sequential candidates can take two download budgets (up to 8 seconds each), plus decoding/encoding and cache operations. Failed BnF requests are not negatively cached; browser success caching retains the selected image for the existing one-day TTL.
+Provider-specific illustrated-placeholder recognition and semantic proof of cover/edition identity remain unimplemented, as documented in the previous session. No claim of universal placeholder rejection or live provider coverage is made.
+
+## PREVIOUS SESSION: real-image validation
 Completed the real-image validation NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `e012bbdd7ddc340ef201133eed41aff1a07d982d`.
 Session date: 2026-09-27 (Europe/Paris).
@@ -424,6 +460,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse the completed edition-bound BnF-first/DLP-second image endpoint and candidate cache/purge behavior. Keep selected ARK/EAN together and do not reinstate unconditional BnF cover attribution during metadata hydration.
 - Reuse the tested French image decoder, bounded downloader and mandatory BnF/DLP proxy path; do not repeat the completed image-validation work. Keep its documented placeholder/identity limits explicit when adding source selection.
 - Reuse the completed Discover exact-ISBN form and revalidated edition-only add path; preserve provenance, unknown totals, disabled automatic monitoring and concurrent-add idempotence.
 - Reuse the completed exact-ISBN endpoint, Open Library adapter and BnF-first/error policy; do not repeat provider selection or the completed fallback investigation without a new failing case.
@@ -445,7 +482,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Implement ordered cover fallback for the existing BnF ARK and DLP canonical-EAN candidates of one selected French edition, reusing the completed image validator: preserve edition identity and accurate cover-source attribution, try the next candidate only after rejection/failure, add focused fallback/provenance tests, run relevant regressions, commit, update this checkpoint with one next action, and stop. Do not add broad metadata supplementation or new cover providers in this step.
+Add a focused French-catalog CI gate using the existing repository workflow conventions: expose one reproducible command for the completed French metadata/import/cover regressions, run it with web TypeScript checking on this development branch and relevant pull requests, verify the command locally and the workflow configuration, record any actual remote CI result or access limitation, commit, update this checkpoint with one next action, and stop. Do not deploy, expand providers or repeat completed catalog investigations.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
