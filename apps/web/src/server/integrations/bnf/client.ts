@@ -1,8 +1,8 @@
+import { bnfEditionCoverUrl } from './covers';
 import { bookEan, extractBookIdentifiers } from './identifiers';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 
 const SRU_BASE = 'https://catalogue.bnf.fr/api/SRU';
-const COVER_BASE = 'https://openapi.bnf.fr/couverture/image/image/recupererImage';
 const TIMEOUT_MS = 20_000;
 const MAX_RECORDS = 100;
 const MAX_PAGES = 5;
@@ -347,18 +347,7 @@ async function sru(cql: string, maximumRecords = MAX_RECORDS, requireSuccess = f
 }
 
 function coverUrl(record: ParsedRecord): string {
-  const isbn = record.ean;
-  if (isbn) {
-    return `https://bdi.dlpdomain.com/album/${isbn}/couv/M385x862/cover.jpg`;
-  }
-
-  const url = new URL(COVER_BASE);
-  url.searchParams.set('idArk', record.ark);
-  url.searchParams.set('couverture', '1');
-  url.searchParams.set('taille', 'originale');
-  url.searchParams.set('largeur', '900');
-  url.searchParams.set('hauteur', '1400');
-  return url.toString();
+  return bnfEditionCoverUrl(record.ark, record.ean);
 }
 
 function bestRelationForQuery(record: ParsedRecord, query: string): string | null {

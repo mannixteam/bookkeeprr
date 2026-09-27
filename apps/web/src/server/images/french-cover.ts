@@ -58,7 +58,7 @@ function checkedUrl(value: string): URL {
 }
 
 /** One deadline includes redirects, headers and streaming body; cap actual bytes. */
-export async function fetchFrenchCover(target: string): Promise<Buffer> {
+export async function fetchFrenchCover(target: string, sourceHost?: string): Promise<Buffer> {
   const controller = new AbortController();
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -76,6 +76,7 @@ export async function fetchFrenchCover(target: string): Promise<Buffer> {
         let url = checkedUrl(target);
         let response: Response;
         for (let redirects = 0; ; redirects++) {
+          if (sourceHost && url.host !== sourceHost) throw new Error('cover source changed');
           response = await fetch(url, {
             signal: controller.signal,
             redirect: 'manual',

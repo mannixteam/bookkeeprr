@@ -1,3 +1,4 @@
+import { candidatesForBnfCoverUrl } from '@/server/integrations/bnf/covers';
 import { createHash } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -19,6 +20,15 @@ const CACHE_EXTS = ['.jpg', '.png', '.webp', '.avif', '.gif', '.img'] as const;
  */
 export async function purgeCachedImage(url: string | null | undefined): Promise<void> {
   if (!url) return;
+  try {
+    const candidates = candidatesForBnfCoverUrl(url);
+    if (candidates) {
+      await Promise.all(candidates.map((candidate) => purgeCachedImage(candidate.url)));
+      return;
+    }
+  } catch {
+    return;
+  }
   let dir: string;
   try {
     dir = await getImageCacheDir();

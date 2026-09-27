@@ -17,3 +17,10 @@ it.each(['openapi.bnf.fr', 'bdi.dlpdomain.com'])(
     expect(container.querySelector('.cv-fb')?.getAttribute('aria-hidden')).toBe('false');
   },
 );
+
+it('preserves the selected-edition local image URL', () => {
+  const src = '/api/img?bnfArk=ark%3A%2F12148%2Fcb12345678x&ean=9782723488525';
+  expect(proxiedSrc(src)).toBe(src);
+  const { container } = render(<Cover src={src} title="Album français" contentType="comic" />);
+  expect(container.querySelector('img')?.getAttribute('src')).toBe(src);
+});

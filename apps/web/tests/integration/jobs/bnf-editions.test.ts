@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { seedDb, type SeedHandle } from '../helpers/seed';
-import { insertSeries } from '@/server/db/series';
+import { getSeries, insertSeries } from '@/server/db/series';
 import { insertVolume, listVolumesBySeries } from '@/server/db/volumes';
 import { metadataHydrateDescriptor } from '@/server/jobs/kinds/metadata-hydrate';
 import { withBnfArk } from '@/lib/bnf-marker';
@@ -39,4 +39,18 @@ it('matches an existing ISBN-10 to its EAN instead of switching to another avail
   const rows = await listVolumesBySeries(id);
   expect(rows).toHaveLength(2);
   expect(JSON.parse(rows.find(v => v.number === 2)!.metadataJson)).toMatchObject({ bnfArk: ark(3), ean: '9780306406157' });
+});
+it('stores cover candidates from the selected edition without claiming an image was retrieved', async () => {
+  const id = await setup();
+  const seed = record(2, '0306406152');
+  vi.stubGlobal('fetch', vi.fn(async url => response(new URL(String(url)).searchParams.get('query')!.includes('persistentid') ? seed : seed + record(1, '9782723488525'))));
+  await metadataHydrateDescriptor.handler({ seriesId: id }, 1);
+  const meta = JSON.parse((await listVolumesBySeries(id))[0]!.metadataJson);
+  expect(meta.coverUrl).toBe('/api/img?bnfArk=ark%3A%2F12148%2Fcb12345672x&ean=9780306406157');
+  expect((await getSeries(id))?.coverUrl).toBe(meta.coverUrl);
+  expect(meta.coverSource).toBeNull();
+  expect(meta.coverRetrievedAt).toBeNull();
+  expect(meta.coverCandidates.map((candidate: { source: string }) => candidate.source)).toEqual(['bnf', 'dlp']);
+  expect(new URL(meta.coverCandidates[0].url).searchParams.get('idArk')).toBe(ark(2));
+  expect(meta.coverCandidates[1].url).toBe('https://bdi.dlpdomain.com/album/9780306406157/couv/M385x862/cover.jpg');
 });

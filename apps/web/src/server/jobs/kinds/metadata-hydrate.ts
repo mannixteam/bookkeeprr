@@ -1,3 +1,4 @@
+import { bnfCoverCandidates } from '@/server/integrations/bnf/covers';
 import { z } from 'zod';
 import { getManga } from '@/server/integrations/anilist/client';
 import { getSeriesBySlug } from '@/server/integrations/novelupdates';
@@ -87,8 +88,11 @@ export const metadataHydrateDescriptor: JobKindDescriptor<
           coverUrl: volume.coverUrl,
           publisher: volume.publisher,
           creators: volume.creators,
-          coverSource: 'Bibliothèque nationale de France',
-          coverRetrievedAt: new Date().toISOString().slice(0, 10),
+          coverCandidates: bnfCoverCandidates(volume.ark, volume.ean),
+          // Bibliographic hydration does not retrieve an image. The image
+          // response reports the actual winner after on-demand validation.
+          coverSource: null,
+          coverRetrievedAt: null,
         });
         const releaseDate = volume.year ? new Date(`${volume.year}-01-01T00:00:00Z`) : null;
         const row = byNumber.get(number);

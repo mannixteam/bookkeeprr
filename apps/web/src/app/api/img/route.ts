@@ -13,6 +13,8 @@ import { clearanceForHost, invalidateClearance } from '@/server/images/cf-cleara
 
 import { decodeFrenchCover, fetchFrenchCover, MAX_COVER_BYTES } from '@/server/images/french-cover';
 
+import { bnfCoverCandidates } from '@/server/integrations/bnf/covers';
+
 export const dynamic = 'force-dynamic';
 
 /** Map an upstream content-type (or fall back to the URL) to a file extension. */
@@ -88,7 +90,39 @@ function contentTypeForExt(ext: string): string {
  * requests without hitting the upstream.
  */
 export async function GET(req: Request): Promise<Response> {
-  const target = new URL(req.url).searchParams.get('u');
+  const params = new URL(req.url).searchParams;
+  if (params.has('bnfArk')) {
+    let candidates;
+    try {
+      if (
+        params.has('u') ||
+        params.getAll('bnfArk').length !== 1 ||
+        params.getAll('ean').length > 1
+      )
+        throw new Error('ambiguous cover');
+      candidates = bnfCoverCandidates(params.get('bnfArk')!, params.get('ean'));
+    } catch {
+      return new NextResponse('invalid edition cover', { status: 400 });
+    }
+    for (const candidate of candidates) {
+      // Reuse the same decoder/cache acceptance path. A local function call,
+      // not a loopback HTTP request. Only validated 200 responses can win.
+      const response = await GET(
+        new Request(`http://localhost/api/img?u=${encodeURIComponent(candidate.url)}`),
+      );
+      if (response.ok) {
+        response.headers.set('x-cover-source', candidate.source);
+        response.headers.set('x-cover-source-url', candidate.url);
+        return response;
+      }
+      await response.body?.cancel();
+    }
+    return new NextResponse('no valid edition cover', {
+      status: 502,
+      headers: { 'cache-control': 'no-store' },
+    });
+  }
+  const target = params.get('u');
   if (!target) return new NextResponse('missing u', { status: 400 });
 
   let parsed: URL;
@@ -120,7 +154,7 @@ export async function GET(req: Request): Promise<Response> {
     }
     if (!bytes) {
       try {
-        bytes = await fetchFrenchCover(target);
+        bytes = await fetchFrenchCover(target, parsed.host);
       } catch {
         return new NextResponse('invalid cover', {
           status: 502,

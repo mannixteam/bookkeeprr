@@ -17,7 +17,7 @@ describe('BnF ISBN/EAN edition identity', () => {
     expect(await volume(['ISBN 978-2-7234-8852-5 (br.) : 7,20 EUR'])).toMatchObject({ isbn: '9782723488525', ean: '9782723488525' });
   });
   it('converts ISBN-10 to its equivalent edition EAN and cover key', async () => {
-    expect(await volume(['ISBN 0-306-40615-2'])).toMatchObject({ isbn: '0306406152', ean: '9780306406157', coverUrl: 'https://bdi.dlpdomain.com/album/9780306406157/couv/M385x862/cover.jpg' });
+    expect(await volume(['ISBN 0-306-40615-2'])).toMatchObject({ isbn: '0306406152', ean: '9780306406157', coverUrl: '/api/img?bnfArk=ark%3A%2F12148%2Fcb12345678x&ean=9780306406157' });
   });
   it('normalizes a lowercase ISBN-10 check digit X', async () => {
     expect(await volume(['ISBN 080442957x'])).toMatchObject({ isbn: '080442957X', ean: '9780804429573' });
@@ -25,7 +25,7 @@ describe('BnF ISBN/EAN edition identity', () => {
   it.each(['9782723488524', '0306406153', '4006381333931', '97827234885250', '978X723488525'])('rejects an invalid or non-book identifier: %s', async value => {
     const hit = await volume([value]);
     expect(hit).toMatchObject({ isbn: null, ean: null });
-    expect(hit.coverUrl).toContain('openapi.bnf.fr');
+    expect(hit.coverUrl).toBe('/api/img?bnfArk=ark%3A%2F12148%2Fcb12345678x');
   });
   it('skips a corrupt identifier before a valid one', async () => {
     expect(await volume(['9782723488524', '9782723488525'])).toMatchObject({ isbn: '9782723488525', ean: '9782723488525' });
