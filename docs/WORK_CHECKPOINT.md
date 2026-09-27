@@ -35,10 +35,43 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Validate existing BnF/DLP cover candidates at the image serving/cache boundary.
 - [x] Implement ordered BnF-to-DLP cover fallback for the selected edition.
 - [ ] Add provider-specific illustrated-placeholder fixtures/recognition.
-- [ ] Expand French BD/comics/manga automated tests and CI coverage.
+- [x] Add a reproducible French regression command and dedicated CI gate (307 tests plus web TypeScript).
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the focused French-catalog CI NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code/configuration commit: `f46a6e4de41ae72802f010bd326ed7594213e3d9`.
+Session date: 2026-09-27 (Europe/Paris).
+
+### DONE: French catalog CI gate
+- Root command `corepack pnpm@9.15.0 check:french` runs web TypeScript then the focused French regressions; either failure fails the command.
+- Web `test:french` holds the single shared list of fourteen test selectors covering the completed metadata, import, UI, provider fallback and image behavior. No tests/assertions were weakened or removed.
+- New `.github/workflows/french-catalog.yml` runs on pushes to `chore/work-checkpoint-system`, all pull requests (including shared-code changes) and manual dispatch, without path filters.
+- Uses existing workflow conventions: Ubuntu, Node 22, pnpm 9.15.0, frozen lockfile and a fifteen-minute job limit. Obsolete runs on the same ref are cancelled.
+- Read-only contents permission, no persisted checkout credentials, no Docker build/publication/deployment steps. The existing release/publishing workflow was not changed or manually dispatched.
+- Added `docs/FRENCH_CATALOG_CI.md` with local commands, scope, trigger behavior and the distinction between the focused gate and release approval.
+- Branch-protection requirements were not modified; the workflow exposes the status `French catalog - typecheck and regressions` but does not itself require it for merging.
+
+### Exact verification: CI
+Initial root-command attempt failed before TypeScript/tests: plain nested `pnpm` resolved to the environment's different global version and aborted an attempted dependency reinstall (`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`). No test failure count applies. Fixed both child commands to explicitly use `corepack pnpm@9.15.0`; no dependencies or lockfile changes were needed.
+
+Final local command:
+```bash
+corepack pnpm@9.15.0 check:french
+```
+Result: web TypeScript PASS, **307 passed, 0 failed**, twenty-seven test files, using local Node 24.19.0.
+Parsed workflow YAML and checked triggers, permissions, job/action/version configuration, exact command wiring, all fourteen existing test selectors, and absence of `--passWithNoTests`: PASS.
+`git diff --check`: PASS. No local actionlint binary was available; actual GitHub execution below validates the workflow as well.
+
+Remote GitHub Actions on code commit `f46a6e4de41ae72802f010bd326ed7594213e3d9`:
+- Push run **36310878371**: completed / **success** — https://github.com/mannixteam/bookkeeprr/actions/runs/36310878371
+- Pull-request run **36310881478** (existing PR #1): completed / **success** — https://github.com/mannixteam/bookkeeprr/actions/runs/36310881478
+- Both jobs completed dependency installation and `Check French catalog` successfully under the configured Node 22 environment. Retrieved push-job logs confirm **307 tests / 27 files passed**.
+- The initial status/run query returned empty while runs were being created; subsequent REST run/job reads confirmed both successes. This is not an access limitation.
+
+No full-suite result is claimed: existing general CI/Website workflows also trigger on the PR, but were not investigated in this scoped step. No live provider coverage, Docker build, release or VM deployment was performed. The final checkpoint-only commit can trigger fresh runs; the verified results above refer exactly to the code commit.
+
+## PREVIOUS SESSION: ordered cover fallback
 Completed the ordered BnF/DLP cover fallback NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `9fed41a10026b6b1ccb13e8129642d4db7d35fcd`.
 Session date: 2026-09-27 (Europe/Paris).
@@ -460,6 +493,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse `corepack pnpm@9.15.0 check:french` and the completed dedicated workflow for French regressions; update its single test selection as new standalone cases are added. Do not re-create the CI gate or manually dispatch the publishing workflow for test-only work.
 - Reuse the completed edition-bound BnF-first/DLP-second image endpoint and candidate cache/purge behavior. Keep selected ARK/EAN together and do not reinstate unconditional BnF cover attribution during metadata hydration.
 - Reuse the tested French image decoder, bounded downloader and mandatory BnF/DLP proxy path; do not repeat the completed image-validation work. Keep its documented placeholder/identity limits explicit when adding source selection.
 - Reuse the completed Discover exact-ISBN form and revalidated edition-only add path; preserve provenance, unknown totals, disabled automatic monitoring and concurrent-add idempotence.
@@ -482,7 +516,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Add a focused French-catalog CI gate using the existing repository workflow conventions: expose one reproducible command for the completed French metadata/import/cover regressions, run it with web TypeScript checking on this development branch and relevant pull requests, verify the command locally and the workflow configuration, record any actual remote CI result or access limitation, commit, update this checkpoint with one next action, and stop. Do not deploy, expand providers or repeat completed catalog investigations.
+Validate provider-specific illustrated-placeholder handling for the existing BnF/DLP cover sources: obtain reproducible missing-cover response samples where accessible, retain documented fixture provenance, add exact/conservative rejection to the existing decoder without broad visual heuristics, and test that genuine covers and ordered fallback still work. If provider access prevents obtaining verified samples, record the concrete limitation rather than inventing fixtures or claiming recognition. Run check:french, commit the verified result, update this checkpoint with one next action, and stop; do not add providers or deploy.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
