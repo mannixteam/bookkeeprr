@@ -31,7 +31,8 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Separate explicitly identified integral/omnibus notices from ordinary numbered volumes.
 - [ ] Harden remaining series / volume / edition grouping.
 - [x] Deduplicate BnF editions within existing work/kind groups and preserve selected library metadata.
-- [ ] Validate cross-provider edition deduplication when complementary sources are added.
+- [x] Recognize existing comic-series/volume ISBN editions before BnF or Open Library exact-ISBN import.
+- [ ] Validate remaining cross-provider catalog-result deduplication when title supplementation is added.
 - [x] Validate existing BnF/DLP cover candidates at the image serving/cache boundary.
 - [x] Implement ordered BnF-to-DLP cover fallback for the selected edition.
 - [ ] Add provider-specific illustrated-placeholder fixtures/recognition.
@@ -39,6 +40,37 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the existing-volume ISBN/EAN duplicate-check NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `33faeb7888bba61eabfc3ed7653a4dfc44cbacf4`.
+Session date: 2026-09-27 (Europe/Paris).
+
+### DONE: existing-volume edition detection
+- After provider revalidation, quality-profile validation and the existing series-level ISBN check, inspect volume metadata joined only to comic parent series before inserting an edition-only entry.
+- Reuse the completed book identifier validator to canonicalize string `isbn`/`ean` values, including legacy hyphenated ISBN-10 and ISBN-13.
+- An exact canonical match returns the existing parent series with `created: false` (HTTP 200). No series, volume, cover, provenance, monitoring or job records are modified.
+- Parse legacy JSON defensively: malformed JSON, null/scalar/array metadata and non-string identifier values cannot establish a match. A valid field can match when the other field is invalid/missing; two different valid canonical identifiers are contradictory and cannot establish a match.
+- Different editions and same-title records without a matching valid identifier remain distinct. Matching identifiers under ebook parents do not suppress comic imports.
+- Keep checks and insertion inside the existing write lock. Concurrent BnF/Open Library adds against a represented edition return the same existing series. Provider missing/changed/failure behavior remains enforced even if the volume is already present.
+- No schema, provider, placeholder, deployed-instance or unrelated behavior changes.
+
+### Exact verification: volume duplicates
+Before the fix, the focused integration file reported **7 failed, 23 passed** (30 cases total): both provider cases and five identifier variants reproduced unwanted series insertion.
+All **22 new cases** now pass: 2 provider/concurrent-add/full-record-preservation cases; 5 valid legacy identifier variants; 11 malformed/different/contradictory metadata variants; 1 ebook isolation case; 3 revalidation failures with an existing volume.
+
+Final command:
+```bash
+corepack pnpm@9.15.0 check:french
+```
+Result: web TypeScript PASS; **329 passed, 0 failed**, twenty-seven test files (307 previous + 22 new). `git diff --check`: PASS.
+Tests use mocked provider lookup with real temporary SQLite and complete before/after snapshots for preservation assertions. No fresh remote CI result, live provider request, full-suite run, Docker build or deployment is claimed.
+
+### Intentional limits: duplicate checks
+Volume matching reads string `isbn` and `ean` in the existing top-level metadata JSON only; it does not infer identifiers from descriptions, filenames or nested provider payloads.
+The existing canonical series-level ISBN check remains first. If the same edition already exists in several parent series, volume matches use ascending series/volume IDs; this step returns an existing series without repairing or merging existing duplicates.
+The volume query selects metadata/parent IDs for comic volumes under the write lock; this is a linear scan, not an indexed identifier table. Very large libraries may need a dedicated normalized index in a separate measured optimization.
+This is import idempotence, not fuzzy cross-provider catalog deduplication or proof that a local file has been acquired. A valid identifier is the available edition evidence; contradictory valid fields intentionally prevent a match.
+
+## PREVIOUS SESSION: provider-placeholder investigation
 Executed the provider-placeholder investigation NEXT ACTION on `chore/work-checkpoint-system`; recognition remains BLOCKED pending verified image samples.
 Evidence commit: `19538e36c8c6ee05e6d59b7cf2acdd42102d7034`.
 Session date: 2026-09-27 (Europe/Paris).
@@ -518,6 +550,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Preserve the completed volume-level ISBN/EAN duplicate check in French edition-only add, including legacy normalization, contradictory-identifier rejection, comic-only scope, provider revalidation and no-write reuse under the existing lock. Do not repeat its investigation without a new failing case.
 - Do not repeat the recorded 2026-09-27 BnF/DLP synthetic placeholder probes without improved access or new verified response samples. Preserve the unresolved illustrated-placeholder requirement; never treat the HTML error hash or generated test artwork as a provider placeholder.
 - Reuse `corepack pnpm@9.15.0 check:french` and the completed dedicated workflow for French regressions; update its single test selection as new standalone cases are added. Do not re-create the CI gate or manually dispatch the publishing workflow for test-only work.
 - Reuse the completed edition-bound BnF-first/DLP-second image endpoint and candidate cache/purge behavior. Keep selected ARK/EAN together and do not reinstate unconditional BnF cover attribution during metadata hydration.
@@ -542,7 +575,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Extend the existing French edition-only add duplicate check to recognize canonical ISBN/EAN already stored in comic volume metadata, including legacy ISBN-10 values, before inserting a new series entry. Preserve the matched series/volume metadata, current provider revalidation and concurrent-add idempotence; do not merge by title or mix editions with different valid identifiers. Add focused temporary-SQLite tests for both BnF and Open Library add results against existing volumes, run check:french, commit, update this checkpoint with one next action, and stop. Do not resume blocked placeholder capture, add providers or deploy.
+Implement a bounded read-only French edition title-search fallback using the existing Open Library integration, to discover editions without requiring the user to know an ISBN. Reuse the completed edition-level French-language and validated ISBN rules, preserve BnF priority and provider provenance, cap candidate lookups/time and do not infer French from work/title metadata. Add focused mocked-provider tests and include them in check:french; commit, update this checkpoint with one next action, and stop. Keep UI/import changes, new providers, blocked placeholder capture and deployment out of scope.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
