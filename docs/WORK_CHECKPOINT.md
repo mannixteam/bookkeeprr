@@ -32,11 +32,46 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Harden remaining series / volume / edition grouping.
 - [x] Deduplicate BnF editions within existing work/kind groups and preserve selected library metadata.
 - [ ] Validate cross-provider edition deduplication when complementary sources are added.
-- [ ] Implement multi-source French cover selection with real image validation.
+- [x] Validate existing BnF/DLP cover candidates at the image serving/cache boundary.
+- [ ] Implement multi-source French cover selection and provider-specific placeholder fixtures.
 - [ ] Expand French BD/comics/manga automated tests and CI coverage.
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the real-image validation NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `e012bbdd7ddc340ef201133eed41aff1a07d982d`.
+Session date: 2026-09-27 (Europe/Paris).
+
+### DONE: real-image acceptance
+- Existing BnF ARK-service and DLP ISBN candidates always use `/api/img` through the shared Cover component and library/mobile URL helpers, even with disk caching disabled. Fixed the missing DLP proxy allowlist entry.
+- French hosts have a dedicated acceptance path: HTTP 200, image MIME, then actual full-pixel decoding with Sharp. Reject HTML disguised as an image, empty/signature-only/corrupt/truncated files, unsupported formats and multipage/animated images.
+- Accept JPEG, PNG, WebP, single-frame GIF and AVIF; require at least 80 x 100 pixels and at most 20 million pixels. Normalize accepted pixels to JPEG and derive the served content type from that output.
+- Cap streamed input and encoded output at 8 MiB. An 8-second download deadline covers headers, allowed redirects and body reads; enforce actual streamed size even if Content-Length is absent/false. Cancel rejected streams. Decode and encode each have a 3-second Sharp processing limit.
+- Follow at most three redirects, only HTTPS to the two existing French cover hosts, without URL credentials. Reject explicit placeholder/no-cover/no-image/image-indisponible destinations, tiny sentinels, fully transparent and single-colour blank responses.
+- Validation failure returns 502/no-store; the existing Cover fallback is shown. Failed responses are never written to cache.
+- Separate `fr-v1-<url-hash>.jpg` cache namespace ignores all pre-validation cache entries; cached bytes are size-checked and decoded again. Invalid entries retry upstream. Atomic cache writes and purge support retained; cache-write failures still serve the validated image.
+- Declare Sharp 0.34.5 directly, reusing the exact version already present in the lockfile/runtime. No schema or BnF bibliographic parsing changes.
+
+### Exact verification: image acceptance
+Initial focused decoder run: **31 passed, 1 failed** (AVIF metadata is reported as HEIF/AV1). The first image-directory run repeated that failure: **67 passed, 1 failed**. Fixed the format check without removing the AVIF assertion.
+New tests: **42 passed** (32 decoder/download cases, 8 proxy/cache cases, 2 component routing/fallback cases). Fixtures use deterministic generated image bytes and mocked responses; actual Sharp decoding runs in tests.
+
+Final targeted regression command (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/images tests/components/french-cover.test.tsx tests/components/french-isbn.test.tsx tests/components/discover-empty.test.tsx tests/integration/jobs/french-edition-add.test.ts tests/server/discover/french-isbn.test.ts tests/server/integrations/openlibrary tests/server/integrations/bnf tests/server/french-comics-bnf.test.ts tests/integration/jobs/bnf-editions.test.ts tests/integration/jobs/bnf-compilations.test.ts tests/integration/jobs/bnf-language.test.ts tests/integration/jobs/bnf-unnumbered.test.ts tests/integration/jobs/metadata-hydrate.test.ts
+```
+Result: **289 passed, 0 failed**, twenty-seven files (219 previous targeted cases, 28 existing image cases, 42 new).
+`corepack pnpm@9.15.0 --filter @bookkeeprr/web typecheck`, `git diff --check` and `corepack pnpm@9.15.0 install --lockfile-only --offline --frozen-lockfile --ignore-scripts`: PASS.
+The initial offline `pnpm add` could not resolve registry metadata; added the direct importer entry using the existing locked Sharp package, then verified the frozen lockfile.
+No live-provider request, browser visual review, full suite, remote CI verification, Docker build or VM deployment.
+
+### Intentional limits: covers
+Validation happens on demand before serving/caching; BnF metadata/database cover URLs remain candidates, not proof that the image exists. A failed candidate currently shows the fallback card; there is no alternate-source retry yet.
+Placeholder rejection covers the explicit missing-image URL patterns and blank/tiny/transparent classes above. No captured provider-specific illustrated placeholder hashes or semantic cover/edition verification exist; an otherwise valid illustrated error graphic can still pass. Uniform-colour artwork can be conservatively rejected. No claim of universal placeholder recognition is made.
+The source list remains the two existing BnF/DLP candidates. The exact-ISBN edition-only import still leaves its cover unset. Other providers retain their previous image behavior.
+Revalidating cached images costs decoding/encoding work. The download deadline and processing limits are separate, not one total request deadline. Disk cache lifetime/refresh policy and request concurrency limits remain unchanged.
+
+## PREVIOUS SESSION: Discover ISBN edition flow
 Completed the Discover/verified-edition-add NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `14243e0b1fc763bbc9741ce604fbcd7144f3b19f`.
 Session date: 2026-09-26 (Europe/Paris).
@@ -389,6 +424,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse the tested French image decoder, bounded downloader and mandatory BnF/DLP proxy path; do not repeat the completed image-validation work. Keep its documented placeholder/identity limits explicit when adding source selection.
 - Reuse the completed Discover exact-ISBN form and revalidated edition-only add path; preserve provenance, unknown totals, disabled automatic monitoring and concurrent-add idempotence.
 - Reuse the completed exact-ISBN endpoint, Open Library adapter and BnF-first/error policy; do not repeat provider selection or the completed fallback investigation without a new failing case.
 - Do not repeat the completed within-group ISBN/EAN edition deduplication or library selection-preservation investigation without a new failing case; retain distinct editions and conservative no-ISBN behavior.
@@ -409,7 +445,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Implement real-image validation for French cover candidates using the existing image pipeline where suitable: require successful image decoding and usable dimensions, bound download size/time, reject HTML/non-images, corrupt/truncated files and known placeholder responses, add focused fixtures/tests and connect validation to the BnF cover acceptance path, run relevant regressions, commit, update this checkpoint with one next action, and stop. Keep additional cover-source expansion and broad metadata supplementation out of scope.
+Implement ordered cover fallback for the existing BnF ARK and DLP canonical-EAN candidates of one selected French edition, reusing the completed image validator: preserve edition identity and accurate cover-source attribution, try the next candidate only after rejection/failure, add focused fallback/provenance tests, run relevant regressions, commit, update this checkpoint with one next action, and stop. Do not add broad metadata supplementation or new cover providers in this step.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
