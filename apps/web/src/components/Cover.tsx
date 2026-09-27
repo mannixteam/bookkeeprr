@@ -37,6 +37,7 @@ const PROXIED_HOSTS = new Set<string>([
   'books.google.com',
   'books.googleusercontent.com',
   'bdi.dlpdomain.com',
+  'openapi.bnf.fr',
 ]);
 
 /** Rewrites allowlisted external cover URLs to go through the image proxy. */

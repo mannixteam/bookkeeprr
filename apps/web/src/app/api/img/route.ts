@@ -1,14 +1,17 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NextResponse } from 'next/server';
 import { getImageCacheDir, imageCacheSetting } from '@/server/db/settings/library';
 import {
   isAllowlistedImageHost,
   isCfGatedImageHost,
+  isFrenchCoverHost,
   upstreamImageHeaders,
 } from '@/server/images/allowlist';
 import { clearanceForHost, invalidateClearance } from '@/server/images/cf-clearance';
+
+import { decodeFrenchCover, fetchFrenchCover, MAX_COVER_BYTES } from '@/server/images/french-cover';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,6 +103,51 @@ export async function GET(req: Request): Promise<Response> {
 
   const { enabled } = await imageCacheSetting.get();
   const hash = createHash('sha256').update(target).digest('hex');
+
+  if (isFrenchCoverHost(parsed.host)) {
+    // A separate namespace prevents pre-validation cache entries being served.
+    const fileName = `fr-v1-${hash}.jpg`;
+    let bytes: Buffer | undefined;
+    if (enabled) {
+      try {
+        const file = join(await getImageCacheDir(), fileName);
+        if ((await stat(file)).size <= MAX_COVER_BYTES) {
+          bytes = await decodeFrenchCover(await readFile(file));
+        }
+      } catch {
+        /* Missing or invalid cache: try the upstream. */
+      }
+    }
+    if (!bytes) {
+      try {
+        bytes = await fetchFrenchCover(target);
+      } catch {
+        return new NextResponse('invalid cover', {
+          status: 502,
+          headers: { 'cache-control': 'no-store' },
+        });
+      }
+      if (enabled) {
+        try {
+          const dir = await getImageCacheDir();
+          await mkdir(dir, { recursive: true });
+          const file = join(dir, fileName);
+          const tmp = `${file}.tmp-${randomBytes(6).toString('hex')}`;
+          await writeFile(tmp, bytes);
+          await rename(tmp, file);
+        } catch {
+          /* A cache failure must not hide a validated cover. */
+        }
+      }
+    }
+    return new NextResponse(new Uint8Array(bytes), {
+      headers: {
+        'content-type': 'image/jpeg',
+        'cache-control': 'public, max-age=86400',
+        'x-content-type-options': 'nosniff',
+      },
+    });
+  }
 
   // Cache HIT: serve from disk without touching the upstream. The extension is
   // unknown without the upstream content-type, so probe the candidate exts.

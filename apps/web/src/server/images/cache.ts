@@ -27,9 +27,9 @@ export async function purgeCachedImage(url: string | null | undefined): Promise<
   }
   const hash = createHash('sha256').update(url).digest('hex');
   await Promise.all(
-    CACHE_EXTS.map(async (ext) => {
+    [...CACHE_EXTS.map((ext) => hash + ext), `fr-v1-${hash}.jpg`].map(async (file) => {
       try {
-        await unlink(join(dir, hash + ext));
+        await unlink(join(dir, file));
       } catch {
         // Missing file or any other error — best-effort, ignore.
       }
