@@ -43,7 +43,8 @@ it('rejects invalid ISBN before lookup', async () => {
 });
 it('adds a BnF ISBN as an edition without launching complete-series hydration', async () => {
   const ark = 'ark:/12148/cb12345678x';
-  vi.mocked(lookup.lookupFrenchIsbn).mockResolvedValue({ ...edition, publishDate: undefined, source: 'bnf', sourceId: ark, ark, sourceUrl: `https://catalogue.bnf.fr/${ark}`, attribution: 'Bibliothèque nationale de France', year: 2026, description: null, creators: [], number: 3 });
+  const { publishDate: _publishDate, ...bnfEdition } = edition;
+  vi.mocked(lookup.lookupFrenchIsbn).mockResolvedValue({ ...bnfEdition, source: 'bnf', sourceId: ark, ark, sourceUrl: `https://catalogue.bnf.fr/${ark}`, attribution: 'Bibliothèque nationale de France', year: 2026, description: null, creators: [], number: 3 });
   expect((await add({ source: 'bnf', sourceId: ark })).status).toBe(201);
   const [row] = await getDb().select().from(series);
   expect(row).toMatchObject({ isbn: edition.ean, totalVolumes: null, extraSearchTermsJson: '[]', monitoring: 'none' });

@@ -508,12 +508,15 @@ function groupRecords(records: ParsedRecord[], query: string, preferredArk?: str
     .slice(0, 20);
 }
 
-export async function searchFrenchComicSeries(query: string): Promise<BnfComicSeriesHit[]> {
+export async function searchFrenchComicSeries(
+  query: string,
+  options: { requireSuccess?: boolean } = {},
+): Promise<BnfComicSeriesHit[]> {
   const q = query.trim();
   if (q.length < 2) return [];
   const ean = bookEan(q);
   const cql = ean ? `bib.isbn any "${ean}"` : `(bib.title all "${escapeCql(q)}") and (bib.recordtype any "mon")`;
-  const records = await sru(cql);
+  const records = await sru(cql, MAX_RECORDS, options.requireSuccess ?? false);
   return groupRecords(records, q);
 }
 

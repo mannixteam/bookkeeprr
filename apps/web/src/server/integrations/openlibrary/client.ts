@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { FrenchIsbnEditionRecord } from './schemas';
 import { bookEan } from '../bnf/identifiers';
 import {
@@ -424,8 +425,94 @@ export async function getFrenchEditionByIsbn(input: string) {
   const parsed = FrenchIsbnEditionRecord.safeParse(raw);
   if (!parsed.success) throw new OpenLibraryError('French ISBN edition response invalid', parsed.error);
   const edition = parsed.data;
-  const languages = edition.languages ?? [];
-  if (languages.length === 0 || !languages.every(l => l.key === '/languages/fre' || l.key === '/languages/fra')) return null;
-  if (![...(edition.isbn_13 ?? []), ...(edition.isbn_10 ?? [])].some(id => bookEan(id) === ean)) return null;
+  if (!frenchEditionEans(edition).includes(ean)) return null;
   return { ...edition, ean };
+}
+
+/** Shared with exact-ISBN lookup: only edition-level declarations establish eligibility. */
+function frenchEditionEans(edition: z.infer<typeof FrenchIsbnEditionRecord>): string[] {
+  const languages = edition.languages ?? [];
+  if (!languages.length || !languages.every(l => l.key === '/languages/fre' || l.key === '/languages/fra')) return [];
+  return [...new Set([...(edition.isbn_13 ?? []), ...(edition.isbn_10 ?? [])]
+    .map(bookEan).filter((ean): ean is string => ean !== null))];
+}
+
+function abortable<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+    if (signal.aborted) abort();
+  });
+}
+
+const TitleSearchResponse = z.object({ docs: z.array(z.unknown()) });
+const TitleSearchCandidate = z.object({
+  editions: z.object({ docs: z.array(z.object({ key: z.string() })) }),
+});
+
+/** Bounded discovery, not a complete bibliography. Search metadata only nominates
+ * edition keys; each edition document independently proves language and ISBN.
+ * https://openlibrary.org/dev/docs/api/search#getting-edition-information
+ */
+export async function searchFrenchEditionsByTitle(input: string) {
+  const title = input.trim();
+  if (title.length < 2 || title.length > 200) throw new OpenLibraryError('Invalid title');
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(new Error('French title search timed out')), 15_000);
+  const signal = controller.signal;
+  async function readJson(url: string): Promise<unknown> {
+    signal.throwIfAborted();
+    await abortable(rateLimit(), signal);
+    signal.throwIfAborted();
+    const requestController = new AbortController();
+    const timer = setTimeout(() => requestController.abort(new Error('Edition request timed out')), 5_000);
+    const requestSignal = AbortSignal.any([signal, requestController.signal]);
+    try {
+      const response = await abortable(activeFetcher(url, { signal: requestSignal }), requestSignal);
+      if (response.status === 404) return null;
+      if (!response.ok) throw new OpenLibraryError(`HTTP ${response.status}`);
+      const body = await abortable(response.text(), requestSignal);
+      requestSignal.throwIfAborted();
+      return JSON.parse(body);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  try {
+    const params = new URLSearchParams({ title, lang: 'fr', fields: 'key,editions,editions.key', limit: '5' });
+    const raw = await readJson(`${BASE}/search.json?${params}`);
+    if (raw === null) return [];
+    const parsed = TitleSearchResponse.safeParse(raw);
+    if (!parsed.success) throw new OpenLibraryError('French title search response invalid', parsed.error);
+    const keys = new Set<string>();
+    for (const doc of parsed.data.docs.slice(0, 5)) {
+      const candidate = TitleSearchCandidate.safeParse(doc);
+      if (!candidate.success) continue;
+      for (const entry of candidate.data.editions.docs.slice(0, 5)) {
+        if (/^\/books\/OL\d+M$/.test(entry.key) && keys.size < 5) keys.add(entry.key);
+      }
+    }
+    const results: Array<z.infer<typeof FrenchIsbnEditionRecord> & { ean: string }> = [];
+    const seenEans = new Set<string>();
+    for (const key of keys) {
+      const rawEdition = await readJson(`${BASE}${key}.json`);
+      if (rawEdition === null) continue;
+      const parsedEdition = FrenchIsbnEditionRecord.safeParse(rawEdition);
+      if (!parsedEdition.success) continue;
+      const edition = parsedEdition.data;
+      if (edition.key !== key) continue;
+      const eans = frenchEditionEans(edition);
+      // Without an input ISBN there is no safe way to choose between conflicting IDs.
+      if (eans.length !== 1 || seenEans.has(eans[0]!)) continue;
+      seenEans.add(eans[0]!);
+      results.push({ ...edition, ean: eans[0]! });
+    }
+    return results;
+  } catch (error) {
+    throw new OpenLibraryError('French title edition lookup failed', error);
+  } finally {
+    clearTimeout(deadline);
+    controller.abort();
+  }
 }
