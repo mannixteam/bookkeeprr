@@ -26,7 +26,8 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Harden the remaining BnF metadata behavior (outside the completed sessions).
 - [x] Add a BnF-first French exact-ISBN lookup with Open Library edition fallback.
 - [x] Connect exact French ISBN lookup to Discover and verified edition-only library add.
-- [ ] Expand recent French metadata beyond exact ISBN lookup.
+- [x] Add bounded read-only BnF-first French edition title lookup with verified Open Library fallback.
+- [ ] Connect French title results to Discover and validate remaining recent-edition coverage.
 - [x] Separate same-title BnF works with conflicting creators/publishers and prioritize explicit series relations.
 - [x] Separate explicitly identified integral/omnibus notices from ordinary numbered volumes.
 - [ ] Harden remaining series / volume / edition grouping.
@@ -40,6 +41,46 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the bounded read-only French edition title-search NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `873a5b4d4e90d4d6a6d9fac68dea488d4dfd3247`.
+Session date: 2026-09-27 (Europe/Paris).
+
+### DONE: French edition title fallback
+- New read-only `GET /api/discover/french-title?title=...` validates one trimmed title of 2–200 characters, returns `{ source, coverage: "bounded", results }`, rejects invalid/duplicate input with 400 and reports provider failures as 502.
+- Reuse BnF title search/grouping and confirmed-French rules; return its editions with validated canonical EANs first. Activate Open Library only if that successful search yields no eligible identified edition.
+- Opt this new caller into the existing strict SRU failure/page-cap policy. First/later-page failures and exhausted pagination do not establish absence. Existing ordinary BnF search callers retain partial-result behavior.
+- Open Library searches by title with `lang=fr` and requests nested edition keys. Work/search metadata only nominates candidates; fetch `/books/OL…M.json` and independently verify the returned key, nonblank title, edition-level French-only language and valid book ISBN.
+- Reuse the exact-ISBN eligibility rules and canonical identifier validator. No French inference from a title, work, publisher, ISBN prefix or language preference parameter. ISBN-10 and equivalent ISBN-13 collapse to one canonical EAN; conflicting valid EANs in a candidate are rejected because no input ISBN can disambiguate them.
+- Examine at most five search documents and fetch at most five unique edition keys. No pagination, retry, author/work expansion or arbitrary provider URL following. A shared 15-second Open Library budget includes rate-limit waits, headers and bodies; each network request has a five-second deadline. Abort-aware races also bound non-cooperating injected fetchers; no new candidate starts after timeout.
+- Skip invalid/missing edition records, retain the first verified candidate per canonical EAN, and keep different EANs even when titles match. HTTP/network/JSON failures fail the lookup instead of presenting accumulated results as complete success.
+- Share provider result formatting with exact-ISBN lookup to preserve attribution, edition ID, source URL and language. Open Library results retain unknown ordinal and no accepted cover. No work-level metadata is copied into the edition result.
+- Added the new standalone endpoint test to the existing `test:french` selection; adapter tests are covered by its existing Open Library directory selector. No UI/import/schema/placeholder/deployment behavior added.
+
+### Exact verification: title search
+Initial focused run: **50 passed, 0 failed**, two new files (34 adapter tests, 16 endpoint tests).
+Coverage includes BnF priority/error/page-cap handling, input validation, provenance, edition-language and ISBN exclusions, legacy identifiers, conflicting identifiers, exact edition-key verification, same-ISBN deduplication, distinct editions, candidate caps, unsafe paths, 404 behavior, provider failures, stalled headers/body and the shared deadline.
+
+The first `check:french` attempt stopped at TypeScript: extracting provider result formatters narrowed the BnF result type, exposing a fixture that explicitly supplied the Open Library-only `publishDate` field as undefined. Updated that fixture to omit the field; no assertion or production acceptance rule was weakened. The suite had not run in that failed gate attempt.
+
+Final command:
+```bash
+corepack pnpm@9.15.0 check:french
+```
+Result: web TypeScript PASS; **379 passed, 0 failed**, twenty-nine test files (329 previous + 50 new). `git diff --check`: PASS.
+Tests use mocked provider responses, fake deadline timers and the existing real temporary-SQLite/image regression coverage. No fresh remote CI success, live catalog coverage benchmark, full-suite run, Docker build or deployment is claimed.
+
+### Intentional limits: title search
+This is an empty-result fallback, not supplementation of a nonempty BnF bibliography: any eligible BnF result suppresses Open Library. Cross-provider result merging remains unimplemented. Existing BnF grouping/selection and no-cursor termination limits are unchanged.
+The bounded Open Library candidate sample is not exhaustive, has no pagination UI and does not guarantee recent-release coverage. Its search index may nominate only one edition per work; `lang=fr` influences selection but does not establish language. Missing/inconsistent edition metadata can exclude genuine French books.
+Open Library confirms French edition metadata, not comic genre, series membership or semantic title identity. No automatic comic classification/import/monitoring is introduced. The endpoint is not yet connected to Discover's UI; existing exact-ISBN lookup/import remains available.
+The Open Library budget starts after the existing bounded BnF lookup (up to 20 seconds); there is no single shared deadline across both providers. No new provider cache or retry policy was introduced.
+
+### Documentation consulted for this scoped implementation
+- https://openlibrary.org/dev/docs/api/search — title parameter, nested edition candidates, language preference and documented edition-selection limitations.
+- https://openlibrary.org/dev/docs/api/books — edition document API context.
+Read on 2026-09-27; documentation retrieval is not a successful live catalog lookup.
+
+## PREVIOUS SESSION: existing-volume edition detection
 Completed the existing-volume ISBN/EAN duplicate-check NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `33faeb7888bba61eabfc3ed7653a4dfc44cbacf4`.
 Session date: 2026-09-27 (Europe/Paris).
@@ -550,6 +591,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Preserve the completed bounded read-only French title endpoint and Open Library edition validation, BnF-first strict-error policy, request caps/deadlines, identifier deduplication and provenance. Reuse its tests and result contract; do not repeat provider selection or infer language from search/work metadata.
 - Preserve the completed volume-level ISBN/EAN duplicate check in French edition-only add, including legacy normalization, contradictory-identifier rejection, comic-only scope, provider revalidation and no-write reuse under the existing lock. Do not repeat its investigation without a new failing case.
 - Do not repeat the recorded 2026-09-27 BnF/DLP synthetic placeholder probes without improved access or new verified response samples. Preserve the unresolved illustrated-placeholder requirement; never treat the HTML error hash or generated test artwork as a provider placeholder.
 - Reuse `corepack pnpm@9.15.0 check:french` and the completed dedicated workflow for French regressions; update its single test selection as new standalone cases are added. Do not re-create the CI gate or manually dispatch the publishing workflow for test-only work.
@@ -575,7 +617,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Implement a bounded read-only French edition title-search fallback using the existing Open Library integration, to discover editions without requiring the user to know an ISBN. Reuse the completed edition-level French-language and validated ISBN rules, preserve BnF priority and provider provenance, cap candidate lookups/time and do not infer French from work/title metadata. Add focused mocked-provider tests and include them in check:french; commit, update this checkpoint with one next action, and stop. Keep UI/import changes, new providers, blocked placeholder capture and deployment out of scope.
+Connect the completed read-only French title-search endpoint to Discover in a clearly labeled French editions panel. Show edition title, canonical ISBN, linked provider attribution and bounded/non-exhaustive coverage; handle loading, empty results and provider errors without implying a complete comic series. Add focused component tests, run check:french, commit, update this checkpoint with one next action, and stop. Keep new import behavior, provider expansion/merging, placeholder capture and deployment out of scope.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
