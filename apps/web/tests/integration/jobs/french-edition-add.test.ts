@@ -51,3 +51,73 @@ it('adds a BnF ISBN as an edition without launching complete-series hydration', 
   expect(await getDb().select().from(volumes)).toEqual([]);
   expect(await getDb().select().from(jobs)).toEqual([]);
 });
+
+async function seedExistingVolume(metadata: string, contentType: 'comic' | 'ebook' = 'comic') {
+  const [parent] = await getDb().insert(series).values({
+    contentType, titleEnglish: edition.title, status: 'releasing', monitoring: 'all',
+    rootPath: '/media/existing', qualityProfileId: db.qpId, description: 'Keep this description',
+  }).returning();
+  await getDb().insert(volumes).values({ seriesId: parent!.id, number: 7, title: 'My selected edition', metadataJson: metadata });
+  return parent!;
+}
+const snapshot = async () => ({ series: await getDb().select().from(series), volumes: await getDb().select().from(volumes), jobs: await getDb().select().from(jobs) });
+const bnfEdition = () => ({ ...edition, publishDate: undefined, source: 'bnf' as const, sourceId: 'ark:/12148/cb12345678x', ark: 'ark:/12148/cb12345678x', sourceUrl: 'https://catalogue.bnf.fr/ark:/12148/cb12345678x', attribution: 'Bibliothèque nationale de France', year: 2026, description: null, creators: [], number: 7 });
+
+it.each(['bnf', 'openlibrary'] as const)('recognizes existing volume identifiers for %s without changing library records', async source => {
+  const verified = source === 'bnf' ? bnfEdition() : edition;
+  vi.mocked(lookup.lookupFrenchIsbn).mockResolvedValue(verified);
+  const parent = await seedExistingVolume(JSON.stringify({ isbn: '0-306-40615-2', ean: edition.ean, source: 'legacy', coverUrl: '/keep.jpg' }));
+  const before = await snapshot();
+  const responses = await Promise.all([add({ source, sourceId: verified.sourceId }), add({ source, sourceId: verified.sourceId })]);
+  for (const response of responses) {
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ id: parent.id, created: false });
+  }
+  expect(lookup.lookupFrenchIsbn).toHaveBeenCalledTimes(2);
+  expect(await snapshot()).toEqual(before);
+});
+it.each([
+  { isbn: '0-306-40615-2' }, { ean: edition.ean }, { isbn: '978-0-306-40615-7' },
+  { ean: 'broken', isbn: '0306406152' }, { isbn: 123, ean: edition.ean },
+])('recognizes a valid standalone or equivalent legacy identifier: %j', async meta => {
+  const parent = await seedExistingVolume(JSON.stringify(meta));
+  const response = await add();
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ id: parent.id, created: false });
+  expect(await getDb().select().from(series)).toHaveLength(1);
+});
+it.each([
+  '{}', '{broken', 'null', '[]', '"0306406152"',
+  JSON.stringify({ isbn: ['0306406152'] }), JSON.stringify({ ean: 9780306406157 }),
+  JSON.stringify({ isbn: '0306406153' }),
+  JSON.stringify({ isbn: '9782723488525' }),
+  JSON.stringify({ isbn: '9782723488525', ean: edition.ean }),
+  JSON.stringify({ isbn: '0306406152', ean: '9782723488525' }),
+])('does not equate malformed, different or contradictory identifiers: %s', async metadata => {
+  const parent = await seedExistingVolume(metadata);
+  const before = await snapshot();
+  const response = await add();
+  expect(response.status).toBe(201);
+  expect((await response.json()).id).not.toBe(parent.id);
+  const after = await snapshot();
+  expect(after.series).toHaveLength(2);
+  expect(after.series.find(row => row.id === parent.id)).toEqual(parent);
+  expect(after.volumes).toEqual(before.volumes);
+  expect(after.jobs).toEqual(before.jobs);
+});
+it('does not use a matching ebook volume to suppress a comic edition', async () => {
+  const parent = await seedExistingVolume(JSON.stringify({ isbn: '0306406152' }), 'ebook');
+  const response = await add();
+  expect(response.status).toBe(201);
+  expect((await response.json()).id).not.toBe(parent.id);
+});
+it.each(['missing', 'changed', 'failure'])('still revalidates the provider despite an existing volume: %s', async mode => {
+  await seedExistingVolume(JSON.stringify({ isbn: '0306406152' }));
+  const before = await snapshot();
+  const spy = vi.mocked(lookup.lookupFrenchIsbn);
+  if (mode === 'missing') spy.mockResolvedValue(null);
+  else if (mode === 'changed') spy.mockResolvedValue({ ...edition, sourceId: '/books/OL999M' });
+  else spy.mockRejectedValue(new Error('offline'));
+  expect((await add()).status).toBe(mode === 'failure' ? 502 : 409);
+  expect(await snapshot()).toEqual(before);
+});
