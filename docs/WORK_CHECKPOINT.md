@@ -39,6 +39,31 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Executed the provider-placeholder investigation NEXT ACTION on `chore/work-checkpoint-system`; recognition remains BLOCKED pending verified image samples.
+Evidence commit: `19538e36c8c6ee05e6d59b7cf2acdd42102d7034`.
+Session date: 2026-09-27 (Europe/Paris).
+
+### Observed: provider-placeholder capture
+- Initial Git state was clean and matched the fetched checkpoint branch. All valid existing implementation work was retained.
+- Made bounded read-only requests from the development workspace to the two existing cover services. Full URLs, request conditions and evidence are recorded in `docs/FRENCH_COVER_PLACEHOLDERS.md`.
+- BnF synthetic missing-ARK probe returned HTTP 500 twice; the captured response was 5,899 bytes of HTML, not an image. Its SHA-256 is recorded for provenance only, never as an image denylist entry.
+- DLP synthetic checksum-valid EAN probe returned HTTP 404 initially (body not captured), then timed out. The existing test-EAN control request also timed out. An auxiliary web retrieval tool could not access the synthetic-probe URLs.
+- These inputs are probes, not verified real missing-cover editions. No illustrated placeholder or successful genuine-cover control was obtained, so no provider-specific image fixture, fingerprint or heuristic was invented.
+- Provider access/response limitations prevent completing illustrated-placeholder recognition in this session. The required phase remains unchecked; this follows the checkpoint's explicit failure-to-obtain-samples provision.
+- No decoder, fallback, cache, metadata, CI or VM behavior changed. No redundant HTTP/HTML tests added: the completed regression suite already covers these rejection paths.
+
+### Exact verification: placeholder investigation
+```bash
+corepack pnpm@9.15.0 check:french
+```
+Result: web TypeScript PASS; **307 passed, 0 failed**, twenty-seven test files. `git diff --check`: PASS.
+These tests verify the existing decoding/genuine synthetic-image/fallback behavior; they do not establish recognition of provider-specific illustrated placeholders.
+No fresh remote CI result, full-suite run, Docker build or deployment is claimed. Previous verified CI results remain recorded below.
+
+### Remaining limitation
+Resume provider-specific recognition only with newly accessible, reproducible samples or supplied original provider responses with provenance. Do not repeat these exact unsuccessful probes without changed evidence. Generic rejection and edition-bound BnF/DLP fallback remain available, but illustrated error graphics can still pass decoding.
+
+## PREVIOUS SESSION: French catalog CI gate
 Completed the focused French-catalog CI NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code/configuration commit: `f46a6e4de41ae72802f010bd326ed7594213e3d9`.
 Session date: 2026-09-27 (Europe/Paris).
@@ -493,6 +518,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Do not repeat the recorded 2026-09-27 BnF/DLP synthetic placeholder probes without improved access or new verified response samples. Preserve the unresolved illustrated-placeholder requirement; never treat the HTML error hash or generated test artwork as a provider placeholder.
 - Reuse `corepack pnpm@9.15.0 check:french` and the completed dedicated workflow for French regressions; update its single test selection as new standalone cases are added. Do not re-create the CI gate or manually dispatch the publishing workflow for test-only work.
 - Reuse the completed edition-bound BnF-first/DLP-second image endpoint and candidate cache/purge behavior. Keep selected ARK/EAN together and do not reinstate unconditional BnF cover attribution during metadata hydration.
 - Reuse the tested French image decoder, bounded downloader and mandatory BnF/DLP proxy path; do not repeat the completed image-validation work. Keep its documented placeholder/identity limits explicit when adding source selection.
@@ -516,7 +542,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Validate provider-specific illustrated-placeholder handling for the existing BnF/DLP cover sources: obtain reproducible missing-cover response samples where accessible, retain documented fixture provenance, add exact/conservative rejection to the existing decoder without broad visual heuristics, and test that genuine covers and ordered fallback still work. If provider access prevents obtaining verified samples, record the concrete limitation rather than inventing fixtures or claiming recognition. Run check:french, commit the verified result, update this checkpoint with one next action, and stop; do not add providers or deploy.
+Extend the existing French edition-only add duplicate check to recognize canonical ISBN/EAN already stored in comic volume metadata, including legacy ISBN-10 values, before inserting a new series entry. Preserve the matched series/volume metadata, current provider revalidation and concurrent-add idempotence; do not merge by title or mix editions with different valid identifiers. Add focused temporary-SQLite tests for both BnF and Open Library add results against existing volumes, run check:french, commit, update this checkpoint with one next action, and stop. Do not resume blocked placeholder capture, add providers or deploy.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
