@@ -43,6 +43,40 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Executed the bounded live bibliographic coverage NEXT ACTION on `chore/work-checkpoint-system`; live coverage remains BLOCKED / unverified from this workspace.
+Evidence commit: `08c50b9660d1613c789e6575f655a0c171c648fe`.
+Session date: 2026-09-28 (Europe/Paris).
+
+### Observed: bounded live bibliography check
+- Git was clean and matched the fetched checkpoint branch. Existing application work was preserved.
+- Executed the existing read-only title lookup once for each of Les Cinq Terres, Ekhö and Les Légendaires using a reproducible capture script. Three BnF SRU GET attempts total; no retries or alternate transports/provider searches.
+- Each first-page request reached the existing 20-second deadline before receiving an HTTP status/body. Lookup durations: 20,013 ms, 20,002 ms and 20,002 ms respectively. Native TimeoutError surfaced as BnfError.
+- No edition was returned, so no exact-ISBN lookup or title-to-ISBN comparison was possible. Open Library was not called because BnF failure must not establish absence.
+- Saved exact URLs/CQL, timestamps, errors and request/lookup timings in `docs/french-live-2026-09-28/report.json`; interpretation, limits and reproduction command are in `docs/FRENCH_LIVE_COVERAGE.md`.
+- Added `apps/web/scripts/check-french-live.ts` solely for explicit read-only evidence capture; it is not part of CI or application behavior and refuses an existing output directory. It calls the completed provider functions, never imports library records or probes covers.
+- The first tsx CLI launch failed before script/network execution with a temporary IPC socket `listen EPERM`. Executing Node with the installed tsx import loader succeeded; this did not repeat a provider request.
+- No evidence distinguishes a workspace/network routing limitation from provider-side failure. Do not interpret these timeouts as empty catalogs, global BnF downtime or verified recent-edition coverage. The required coverage phase remains unchecked.
+
+### Exact verification: live evidence
+Executed from `apps/web`:
+```bash
+node --import tsx scripts/check-french-live.ts ../../docs/french-live-2026-09-28
+```
+Capture completed with three recorded failures and no skipped required title. No response-body files exist because no response was received.
+Evidence consistency check: PASS (the three prescribed titles, exactly three requests, three native timeouts, no HTTP status or ISBN result fabricated).
+
+Regression command:
+```bash
+corepack pnpm@9.15.0 check:french
+```
+Result: web TypeScript PASS; **405 passed, 0 failed**, thirty files. `git diff --check`: PASS.
+No application behavior changed and no redundant tests were added. The script itself is included in web TypeScript validation. Mocked regression success is not a live coverage result.
+No fresh remote CI success, full-suite run, browser review, Docker build, library import or VM deployment is claimed.
+
+### Remaining limitation: live access
+Resume the named live probes only with changed access conditions or new reproducible provider evidence. Preserve the strict failure policy; do not replace the timeouts with empty results or invent editions/ISBNs. Cover access/illustrated-placeholder limitations from the earlier investigation remain separate and were not probed again.
+
+## PREVIOUS SESSION: verified title selection
 Completed the title-selection-to-ISBN-import NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `ce46554300016c5733e1536067f1e8e4cf583b5c`.
 Session date: 2026-09-28 (Europe/Paris).
@@ -656,6 +690,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Do not repeat the recorded 2026-09-28 live title probes for Les Cinq Terres, Ekhö and Les Légendaires without changed access or new provider evidence. Preserve `docs/FRENCH_LIVE_COVERAGE.md` and the raw trace; live coverage and title-to-ISBN comparison remain unverified, not empty or successful.
 - Preserve the completed explicit title-to-ISBN handoff: transfer only ISBN, re-fetch before showing add controls, retain the fresh identity/profile payload, prevent overlapping operations and never auto-add a title result. Reuse the composed-component tests and existing server revalidation/idempotence.
 - Preserve the completed read-only Discover French title panel, explicit limited-coverage wording, source links, loading/error/empty states and request lifecycle guards. Reuse its component tests; do not recreate the panel or silently convert editions into complete series.
 - Preserve the completed bounded read-only French title endpoint and Open Library edition validation, BnF-first strict-error policy, request caps/deadlines, identifier deduplication and provenance. Reuse its tests and result contract; do not repeat provider selection or infer language from search/work metadata.
@@ -684,7 +719,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Perform a bounded read-only live bibliographic coverage check of the completed French title and exact-ISBN lookups for Les Cinq Terres, Ekhö and Les Légendaires from the development workspace. Use at most one title lookup per title and one exact-ISBN lookup of a returned validated edition per title; record actual provider responses/provenance, timing, result limits and any title-to-ISBN mismatch in a reproducible evidence document. If access fails, record the precise blocker without repeated probes or invented coverage. Run check:french, commit the evidence, update this checkpoint with one next action based on observed results, and stop. Do not add providers, change metadata behavior, probe covers, import into a library or touch the VM.
+Run the existing full web unit/integration regression suite in the isolated development workspace and record a reproducible assessment of pass/fail counts and concrete failures, alongside check:french. Classify observed failures as French-flow regressions, unrelated existing failures or environment blockers using only the directly relevant code/tests; do not perform a broad repository audit or start fixing multiple areas. Commit the assessment, update this checkpoint with one bounded next action chosen from the observed failures (or the remaining release checks if none), and stop. Keep live provider probes, publishing workflows, Docker publication and the deployed VM untouched.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
