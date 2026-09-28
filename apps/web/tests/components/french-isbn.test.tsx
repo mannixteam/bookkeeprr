@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FrenchIsbnLookup } from '@/app/(app)/discover/FrenchIsbnLookup';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it('shows the source and submits only the verified edition identity and chosen profile', async () => {
@@ -20,6 +20,6 @@ it('shows lookup errors without offering an add', async () => {
   render(<FrenchIsbnLookup />); fireEvent.click(screen.getByText('Édition française par ISBN'));
   fireEvent.change(screen.getByLabelText('ISBN'), { target: { value: '0306406152' } });
   fireEvent.click(screen.getByRole('button', { name: 'Rechercher l’édition' }));
-  expect((await screen.findByRole('status')).textContent).toContain('Indisponible');
+  await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Indisponible'));
   expect(screen.queryByRole('button', { name: 'Ajouter cette édition' })).toBeNull();
 });

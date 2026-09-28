@@ -6,7 +6,10 @@ import type { lookupFrenchTitle } from '@/server/discover/french-title';
 
 type SearchResult = Awaited<ReturnType<typeof lookupFrenchTitle>>;
 
-export function FrenchTitleLookup() {
+export function FrenchTitleLookup({ onSelectIsbn, selectionDisabled = false }: {
+  onSelectIsbn?: (isbn: string) => void;
+  selectionDisabled?: boolean;
+}) {
   const [title, setTitle] = useState('');
   const [result, setResult] = useState<SearchResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,6 +72,10 @@ export function FrenchTitleLookup() {
             <p><strong>{edition.title}</strong></p>
             <p>Français · ISBN {edition.ean}</p>
             <p>Source : <a className="underline" href={edition.sourceUrl} target="_blank" rel="noreferrer">{edition.attribution}</a></p>
+            {onSelectIsbn && edition.ean && <button className="mt-2 rounded border px-3 py-2" type="button"
+              disabled={selectionDisabled} onClick={() => onSelectIsbn(edition.ean!)}>
+              Vérifier cet ISBN avant ajout
+            </button>}
           </li>)}
         </ul>}
       </>}
