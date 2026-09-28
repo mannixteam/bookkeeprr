@@ -27,7 +27,8 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Add a BnF-first French exact-ISBN lookup with Open Library edition fallback.
 - [x] Connect exact French ISBN lookup to Discover and verified edition-only library add.
 - [x] Add bounded read-only BnF-first French edition title lookup with verified Open Library fallback.
-- [ ] Connect French title results to Discover and validate remaining recent-edition coverage.
+- [x] Connect read-only French title results to Discover with explicit bounded coverage.
+- [ ] Connect title-result selection to verified ISBN import and validate remaining recent-edition coverage.
 - [x] Separate same-title BnF works with conflicting creators/publishers and prioritize explicit series relations.
 - [x] Separate explicitly identified integral/omnibus notices from ordinary numbered volumes.
 - [ ] Harden remaining series / volume / edition grouping.
@@ -41,6 +42,36 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the read-only Discover French title panel NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `43615aa2f3b8769ca90248bda3e9d19dcbb278ef`.
+Session date: 2026-09-28 (Europe/Paris).
+
+### DONE: Discover French title panel
+- Added the expandable `Éditions françaises par titre` panel to Discover alongside the existing exact-ISBN form.
+- Explicit submission calls only the completed read-only title endpoint. Trim/validate 2–200 characters, encode the title with URLSearchParams and reuse apiFetch authentication handling. Opening the panel alone makes no request.
+- Display each edition's title, canonical ISBN, French language and linked provider attribution. Preserve separate same-title editions and the server result order; no client-side grouping or provider inference.
+- Explain BnF priority, limited/non-exhaustive coverage and that results do not establish a complete series or comic genre. Empty results explicitly allow for other existing editions; provider/network/JSON failures show a retryable error rather than absence.
+- Announce loading, completion and errors with status/alert semantics. Disable input/submission during a request, guard against duplicate submissions and abort pending client work on unmount. Ignore aborted late responses.
+- Clear old results on input changes and new submissions. Use a wrapping form and a height-limited, keyboard-focusable scrolling result list.
+- No add button, quality-profile lookup, library write, provider change or import behavior in this panel. Existing exact-ISBN flow is preserved.
+- Added the new component test file to test:french and extended the existing Discover mount assertion to verify both French panels are present.
+
+### Exact verification: Discover title panel
+Initial focused command (new component plus existing Discover tests): **18 passed, 1 failed**, two files. The empty-state test observed the legitimate loading status before the promise completed; changed it to wait for the expected empty-state text. No product assertion was removed or weakened.
+All **15 new component cases** now pass: initial/no-network behavior; both provider attributions; same-title distinct editions; bounded empty state; four retryable failure variants; editing clears results; loading/duplicate submission; unmount/late response; three invalid input cases.
+
+Final command:
+```bash
+corepack pnpm@9.15.0 check:french
+```
+Result: web TypeScript PASS; **394 passed, 0 failed**, thirty test files (379 previous + 15 new). `git diff --check`: PASS.
+Verification uses jsdom/mocked requests and the existing provider/SQLite/real-image regression coverage. No live provider request, visual browser review, fresh remote CI success, full-suite run, Docker build or deployment is claimed.
+
+### Intentional limits: title panel
+The panel is read-only and does not yet transfer a selected result into the existing exact-ISBN add flow. The completed backend fallback/coverage limits remain unchanged. A displayed edition count is the number returned by this bounded search, not a series volume total.
+Responsive CSS is present but has not been visually tested on the user's Android tablet. No covers were added to the new panel.
+
+## PREVIOUS SESSION: bounded French edition title search
 Completed the bounded read-only French edition title-search NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `873a5b4d4e90d4d6a6d9fac68dea488d4dfd3247`.
 Session date: 2026-09-27 (Europe/Paris).
@@ -591,6 +622,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Preserve the completed read-only Discover French title panel, explicit limited-coverage wording, source links, loading/error/empty states and request lifecycle guards. Reuse its component tests; do not recreate the panel or silently convert editions into complete series.
 - Preserve the completed bounded read-only French title endpoint and Open Library edition validation, BnF-first strict-error policy, request caps/deadlines, identifier deduplication and provenance. Reuse its tests and result contract; do not repeat provider selection or infer language from search/work metadata.
 - Preserve the completed volume-level ISBN/EAN duplicate check in French edition-only add, including legacy normalization, contradictory-identifier rejection, comic-only scope, provider revalidation and no-write reuse under the existing lock. Do not repeat its investigation without a new failing case.
 - Do not repeat the recorded 2026-09-27 BnF/DLP synthetic placeholder probes without improved access or new verified response samples. Preserve the unresolved illustrated-placeholder requirement; never treat the HTML error hash or generated test artwork as a provider placeholder.
@@ -617,7 +649,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Connect the completed read-only French title-search endpoint to Discover in a clearly labeled French editions panel. Show edition title, canonical ISBN, linked provider attribution and bounded/non-exhaustive coverage; handle loading, empty results and provider errors without implying a complete comic series. Add focused component tests, run check:french, commit, update this checkpoint with one next action, and stop. Keep new import behavior, provider expansion/merging, placeholder capture and deployment out of scope.
+Connect an explicit selection from the French title panel to the existing exact-ISBN lookup/add flow. Transfer only the canonical ISBN, perform a fresh lookup and display the currently verified edition/source before allowing the existing explicit quality-profile/add action; never auto-add a title result. Preserve provider revalidation, duplicate checks and edition-only semantics. Add focused component tests, run check:french, commit, update this checkpoint with one next action, and stop. Keep new providers, catalog merging, placeholder capture and deployment out of scope.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
