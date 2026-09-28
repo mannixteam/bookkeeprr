@@ -28,7 +28,8 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Connect exact French ISBN lookup to Discover and verified edition-only library add.
 - [x] Add bounded read-only BnF-first French edition title lookup with verified Open Library fallback.
 - [x] Connect read-only French title results to Discover with explicit bounded coverage.
-- [ ] Connect title-result selection to verified ISBN import and validate remaining recent-edition coverage.
+- [x] Connect title-result selection to the existing verified ISBN import flow.
+- [ ] Validate remaining recent-edition coverage with bounded live bibliographic evidence.
 - [x] Separate same-title BnF works with conflicting creators/publishers and prioritize explicit series relations.
 - [x] Separate explicitly identified integral/omnibus notices from ordinary numbered volumes.
 - [ ] Harden remaining series / volume / edition grouping.
@@ -42,6 +43,39 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the title-selection-to-ISBN-import NEXT ACTION on `chore/work-checkpoint-system`.
+Verified code commit: `ce46554300016c5733e1536067f1e8e4cf583b5c`.
+Session date: 2026-09-28 (Europe/Paris).
+
+### DONE: explicit title selection and fresh ISBN verification
+- Discover now composes the two existing French panels through FrenchEditionDiscovery. Each identified title result offers `Vérifier cet ISBN avant ajout`.
+- The handoff passes only the canonical ISBN, opens/scrolls to the existing ISBN panel and performs a fresh exact-ISBN GET. It never copies title-search metadata into an add request and never auto-adds.
+- Show the currently verified title/source/ISBN and existing edition-only explanation before enabling the existing quality-profile/explicit add controls. A changed BnF/Open Library identity is shown from the new lookup; POST uses that displayed identity and the chosen profile.
+- Re-selecting even the same ISBN performs another lookup and clears the prior verified edition/add result. Missing editions, provider errors and profile errors cannot offer stale title metadata for import. No profile means add remains disabled.
+- Disable title selection during ISBN lookup/profile loading or explicit POST. A synchronous operation guard also blocks duplicate searches/adds. The same guard protects manual ISBN operations.
+- Abort pending ISBN/profile reads on unmount and ignore late responses, including before starting a profile request. Add a visible ISBN verification loading status.
+- Preserve the existing POST endpoint, server-side provider revalidation, duplicate checks, edition-only library semantics and existing-library link. No backend/schema/provider/catalog-merging change.
+
+### Exact verification: title-to-ISBN handoff
+Initial focused run: **31 passed, 1 failed**, three component files. The existing ISBN error test read the newly visible loading status before the error arrived. Changed it to wait for the same expected error text; no assertion was removed or weakened.
+The first full gate, already running when that test synchronization fix was made, reported web TypeScript PASS and **404 passed, 1 failed** with the same loaded pre-fix assertion. The final rerun below loaded the corrected test.
+
+All **11 new composed-component cases** pass: both verified providers (including title-result source changing to BnF); absent/provider/profile failures; repeated same-ISBN selection; POST 409/502 revalidation failures; blocked selection/duplicate add during POST; no profiles; unmount with a late ISBN response. Successful add tests assert the exact identity/profile payload and support an existing-library result.
+
+Final command:
+```bash
+corepack pnpm@9.15.0 check:french
+```
+Result: web TypeScript PASS; **405 passed, 0 failed**, thirty test files (394 previous + 11 new). `git diff --check`: PASS.
+The added cases live in the already-selected French title component file; no duplicate test selector was added. Tests use the real UI composition with mocked HTTP responses plus existing provider/SQLite/real-image regressions.
+No live provider request, visual browser review, fresh remote CI success, full-suite run, Docker build or VM deployment is claimed.
+
+### Intentional limits: verified selection
+A title result is a discovery candidate. Exact-ISBN lookup may select another source/notice for the same canonical ISBN; the new result is visibly presented for the user's explicit add action. Unavailable exact-ISBN editions remain unimportable through this path.
+Selecting another title is temporarily disabled while the current ISBN operation finishes; no queued or automatic add is introduced. Cancelling a browser read does not guarantee cancellation of upstream server work.
+Catalog coverage, title supplementation/merging, provider-specific illustrated placeholders and tablet visual validation remain outside this step.
+
+## PREVIOUS SESSION: read-only Discover title panel
 Completed the read-only Discover French title panel NEXT ACTION on `chore/work-checkpoint-system`.
 Verified code commit: `43615aa2f3b8769ca90248bda3e9d19dcbb278ef`.
 Session date: 2026-09-28 (Europe/Paris).
@@ -622,6 +656,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Preserve the completed explicit title-to-ISBN handoff: transfer only ISBN, re-fetch before showing add controls, retain the fresh identity/profile payload, prevent overlapping operations and never auto-add a title result. Reuse the composed-component tests and existing server revalidation/idempotence.
 - Preserve the completed read-only Discover French title panel, explicit limited-coverage wording, source links, loading/error/empty states and request lifecycle guards. Reuse its component tests; do not recreate the panel or silently convert editions into complete series.
 - Preserve the completed bounded read-only French title endpoint and Open Library edition validation, BnF-first strict-error policy, request caps/deadlines, identifier deduplication and provenance. Reuse its tests and result contract; do not repeat provider selection or infer language from search/work metadata.
 - Preserve the completed volume-level ISBN/EAN duplicate check in French edition-only add, including legacy normalization, contradictory-identifier rejection, comic-only scope, provider revalidation and no-write reuse under the existing lock. Do not repeat its investigation without a new failing case.
@@ -649,7 +684,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Connect an explicit selection from the French title panel to the existing exact-ISBN lookup/add flow. Transfer only the canonical ISBN, perform a fresh lookup and display the currently verified edition/source before allowing the existing explicit quality-profile/add action; never auto-add a title result. Preserve provider revalidation, duplicate checks and edition-only semantics. Add focused component tests, run check:french, commit, update this checkpoint with one next action, and stop. Keep new providers, catalog merging, placeholder capture and deployment out of scope.
+Perform a bounded read-only live bibliographic coverage check of the completed French title and exact-ISBN lookups for Les Cinq Terres, Ekhö and Les Légendaires from the development workspace. Use at most one title lookup per title and one exact-ISBN lookup of a returned validated edition per title; record actual provider responses/provenance, timing, result limits and any title-to-ISBN mismatch in a reproducible evidence document. If access fails, record the precise blocker without repeated probes or invented coverage. Run check:french, commit the evidence, update this checkpoint with one next action based on observed results, and stop. Do not add providers, change metadata behavior, probe covers, import into a library or touch the VM.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
