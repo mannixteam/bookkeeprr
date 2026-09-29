@@ -43,6 +43,35 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the Discover provider-isolation NEXT ACTION on `chore/work-checkpoint-system`.
+Verified test commit: `3899eadac82ac14bf17857ef356de8641393d9f0`.
+Session date: 2026-09-29 (Europe/Paris).
+
+### DONE: hermetic Discover search tests
+- Resumed and preserved the uncommitted isolation work at `aca4288`; fetched branch still matched that HEAD. Completed the interrupted step without restarting the full-suite assessment.
+- `apps/web/tests/server/api/discover/search.test.ts` explicitly mocks BnF series search and both MangaDex cross-link/title-completion paths with empty defaults. Individual existing test overrides remain supported.
+- Stub global fetch with a rejecting spy and assert zero calls after every test, so swallowed provider errors cannot hide an accidental network attempt. Restore globals/spies and reset provider fetchers in a finally block, with existing temporary-database cleanup.
+- All 35 existing test bodies, result/error/provider-gating assertions and timeout configuration are unchanged. No production source, dependency or global test configuration changed.
+
+### Exact verification: Discover isolation
+Initial guarded run: **32 passed, 3 failed**. The guard blocked attempted MangaDex title-completion requests in these existing cases:
+- `collapses an AniList+NU same-title novel and keeps NU-only standalone`
+- `records the NU error under "novelupdates" when NU fails in the fan-out`
+- `novelupdates off: NU is not called and no NU results appear (contentType=all)`
+Added the missing explicit `searchMangaTitles` mock; no real request escaped the guard and no existing assertion was weakened.
+
+Final commands (repository root):
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/api/discover/search.test.ts
+corepack pnpm@9.15.0 check:french
+```
+Results: Discover **35 passed, 0 failed**, one file (6.98 s); French gate web TypeScript PASS and **405 passed, 0 failed**, thirty files (13.56 s). An earlier French gate also passed 405 tests before the final title-completion mock was added. The final gate finished before this interrupted session resumed; its complete saved output was checked rather than repeating it.
+`git diff --check`: PASS. Compared all content from `function req` onward with HEAD: unchanged, confirming preservation of all existing test bodies/assertions. The zero-fetch afterEach assertion passed for every Discover case.
+
+### Remaining failures and release limits
+The nine Discover timeouts from the recorded full-suite run are resolved in the targeted rerun. The three ebook/Google Books hydration timeouts remain pending; no new full-suite or remote CI result is claimed. The OpenAPI fix remains preserved. Live coverage, illustrated-placeholder recognition and remaining release phases stay open. No live probe, Docker operation, publishing workflow or VM access occurred.
+
+## PREVIOUS SESSION: website OpenAPI snapshot
 Completed the OpenAPI snapshot synchronization NEXT ACTION on `chore/work-checkpoint-system`.
 Verified snapshot commit: `64fbdf6557c59680bca911b4192f89256efbb3a7`.
 Session date: 2026-09-29 (Europe/Paris).
@@ -734,8 +763,9 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Preserve the Discover BnF/MangaDex mocks, per-test zero-fetch guard and finally cleanup. Reuse the passing 35-case regression file; do not repeat its completed isolation investigation without a new failure.
 - Preserve the regenerated website OpenAPI snapshot and existing freshness assertion. Do not repeat its completed synchronization without a runtime-schema change or new failing freshness test.
-- Reuse the 2026-09-29 full-suite assessment and exact failure inventory; do not repeat the broad assessment before addressing a recorded failure. The OpenAPI snapshot mismatch was resolved by commit `64fbdf6` and its focused rerun; preserve the twelve pending provider-isolation timeouts until relevant fixes/reruns prove them resolved.
+- Reuse the 2026-09-29 full-suite assessment and exact failure inventory; do not repeat the broad assessment before addressing a recorded failure. The OpenAPI snapshot mismatch was resolved by commit `64fbdf6` and its focused rerun; the nine Discover timeouts were resolved by the targeted isolation fix/rerun above. Preserve the three pending hydration timeouts until relevant fixes/reruns prove them resolved.
 - Do not repeat the recorded 2026-09-28 live title probes for Les Cinq Terres, Ekhö and Les Légendaires without changed access or new provider evidence. Preserve `docs/FRENCH_LIVE_COVERAGE.md` and the raw trace; live coverage and title-to-ISBN comparison remain unverified, not empty or successful.
 - Preserve the completed explicit title-to-ISBN handoff: transfer only ISBN, re-fetch before showing add controls, retain the fresh identity/profile payload, prevent overlapping operations and never auto-add a title result. Reuse the composed-component tests and existing server revalidation/idempotence.
 - Preserve the completed read-only Discover French title panel, explicit limited-coverage wording, source links, loading/error/empty states and request lifecycle guards. Reuse its component tests; do not recreate the panel or silently convert editions into complete series.
@@ -765,7 +795,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Make `apps/web/tests/server/api/discover/search.test.ts` hermetic for the recorded BnF and MangaDex paths using explicit provider mocks and appropriate reset/cleanup. Preserve all existing result, error and provider-gating assertions; do not increase timeouts or alter production search behavior. Verify that the file cannot make real provider requests, run that test file and `check:french`, record exact results, commit the validated test-isolation fix, update this checkpoint with one next action and stop. Leave the three hydration timeouts, live probes, publishing workflows and VM untouched in this step.
+Isolate the unmocked provider operations behind the three recorded hydration timeouts in `apps/web/tests/integration/jobs/ebook-hydrate-ol-fallback.test.ts` and `apps/web/tests/integration/jobs/googlebooks-hydrate.test.ts`: Open Library work/alias lookup and targeted Google Books edition search. Reuse the existing assessment, add explicit mocks with cleanup and a guard against real provider requests, preserve all existing behavior assertions and timeouts, and leave production hydration unchanged. Run both complete test files and `check:french`, record exact results, commit the verified isolation fix, update this checkpoint with one next action and stop. Do not run live probes, publishing workflows or touch the deployed VM.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
