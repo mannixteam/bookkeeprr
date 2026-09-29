@@ -1,3 +1,4 @@
+import { candidatesForBnfCoverUrl } from '@/server/integrations/bnf/covers';
 import { createHash } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -19,6 +20,15 @@ const CACHE_EXTS = ['.jpg', '.png', '.webp', '.avif', '.gif', '.img'] as const;
  */
 export async function purgeCachedImage(url: string | null | undefined): Promise<void> {
   if (!url) return;
+  try {
+    const candidates = candidatesForBnfCoverUrl(url);
+    if (candidates) {
+      await Promise.all(candidates.map((candidate) => purgeCachedImage(candidate.url)));
+      return;
+    }
+  } catch {
+    return;
+  }
   let dir: string;
   try {
     dir = await getImageCacheDir();
@@ -27,9 +37,9 @@ export async function purgeCachedImage(url: string | null | undefined): Promise<
   }
   const hash = createHash('sha256').update(url).digest('hex');
   await Promise.all(
-    CACHE_EXTS.map(async (ext) => {
+    [...CACHE_EXTS.map((ext) => hash + ext), `fr-v1-${hash}.jpg`].map(async (file) => {
       try {
-        await unlink(join(dir, hash + ext));
+        await unlink(join(dir, file));
       } catch {
         // Missing file or any other error — best-effort, ignore.
       }

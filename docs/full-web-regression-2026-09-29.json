@@ -1,0 +1,141 @@
+{
+  "assessedCommit": "37cda1ea79573ebcdea3eb7b2ed7062e49be99fa",
+  "node": "v24.19.0",
+  "pnpm": "9.15.0",
+  "vitest": "4.1.8",
+  "startUtc": "2026-09-29T02:17:05.397000+00:00",
+  "durationSeconds": 308.92,
+  "exitCode": 1,
+  "tests": {
+    "passed": 3981,
+    "failed": 13,
+    "skipped": 3,
+    "total": 3997
+  },
+  "files": {
+    "passed": 555,
+    "failed": 4,
+    "skipped": 1,
+    "total": 560
+  },
+  "frenchGate": {
+    "typescript": "passed",
+    "passed": 405,
+    "failed": 0,
+    "files": 30
+  },
+  "nonPassingFiles": [
+    {
+      "file": "tests/server/openapi/snapshot-freshness.test.ts",
+      "status": "failed",
+      "counts": {
+        "failed": 1
+      },
+      "failedTests": [
+        {
+          "name": "website spec snapshot matches the generated document (regenerate via openapi:snapshot)",
+          "durationMs": 1021.09986,
+          "error": "OpenAPI snapshot differs from generated document"
+        }
+      ]
+    },
+    {
+      "file": "tests/server/api/discover/search.test.ts",
+      "status": "failed",
+      "counts": {
+        "passed": 26,
+        "failed": 9
+      },
+      "failedTests": [
+        {
+          "name": "GET /api/discover/search — single type: manga returns manga results from AniList",
+          "durationMs": 5046.877745999999,
+          "error": "Test timed out in 5000ms"
+        },
+        {
+          "name": "GET /api/discover/search — contentType=all merges NU into light novels collapses an AniList+NU same-title novel and keeps NU-only standalone",
+          "durationMs": 5067.3223450000005,
+          "error": "Test timed out in 5000ms"
+        },
+        {
+          "name": "GET /api/discover/search — contentType=all merges NU into light novels records the NU error under \"novelupdates\" when NU fails in the fan-out",
+          "durationMs": 5085.075542000002,
+          "error": "Test timed out in 5000ms"
+        },
+        {
+          "name": "GET /api/discover/search — contentType=all merges results from all configured providers",
+          "durationMs": 5031.203450999998,
+          "error": "Test timed out in 5000ms"
+        },
+        {
+          "name": "GET /api/discover/search — contentType=all records per-provider errors when a provider fails",
+          "durationMs": 5042.907006000001,
+          "error": "Test timed out in 5000ms"
+        },
+        {
+          "name": "GET /api/discover/search — contentType=all returns empty results and errors when all providers fail",
+          "durationMs": 5068.668985000004,
+          "error": "Test timed out in 5000ms"
+        },
+        {
+          "name": "GET /api/discover/search — provider gating novelupdates off: NU is not called and no NU results appear (contentType=all)",
+          "durationMs": 5056.619618999997,
+          "error": "Test timed out in 5000ms"
+        },
+        {
+          "name": "GET /api/discover/search — provider gating anilist off: neither anilist manga nor anilist novel is called",
+          "durationMs": 5032.637836000002,
+          "error": "Test timed out in 5000ms"
+        },
+        {
+          "name": "GET /api/discover/search — provider gating comicvine off: ComicVine search is not called even when configured",
+          "durationMs": 5034.509173999999,
+          "error": "Test timed out in 5000ms"
+        }
+      ]
+    },
+    {
+      "file": "tests/server/integrations/novelupdates/live.test.ts",
+      "status": "passed",
+      "counts": {
+        "skipped": 3
+      },
+      "failedTests": []
+    },
+    {
+      "file": "tests/integration/jobs/ebook-hydrate-ol-fallback.test.ts",
+      "status": "failed",
+      "counts": {
+        "passed": 7,
+        "failed": 1
+      },
+      "failedTests": [
+        {
+          "name": "OL-by-ISBN fallback (C) skips OL-by-ISBN when description is already present",
+          "durationMs": 15061.769557,
+          "error": "Test timed out in 15000ms"
+        }
+      ]
+    },
+    {
+      "file": "tests/integration/jobs/googlebooks-hydrate.test.ts",
+      "status": "failed",
+      "counts": {
+        "passed": 8,
+        "failed": 2
+      },
+      "failedTests": [
+        {
+          "name": "googlebooks_hydrate always replaces an existing novel cover but never lowers totalVolumes",
+          "durationMs": 15115.815460000002,
+          "error": "Test timed out in 15000ms"
+        },
+        {
+          "name": "googlebooks_hydrate clears a stale placeholder cover on re-hydrate when no real cover is found",
+          "durationMs": 15147.470391000003,
+          "error": "Test timed out in 15000ms"
+        }
+      ]
+    }
+  ]
+}

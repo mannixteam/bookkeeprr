@@ -748,7 +748,12 @@
                         "const": "comic"
                       },
                       "comicvineId": {
-                        "type": "integer"
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "bnfArk": {
+                        "type": "string",
+                        "pattern": "^ark:\\/12148\\/cb[0-9a-z]+$"
                       },
                       "publisher": {
                         "type": "string"
@@ -814,7 +819,6 @@
                     },
                     "required": [
                       "contentType",
-                      "comicvineId",
                       "titleEnglish",
                       "qualityProfileId"
                     ]
