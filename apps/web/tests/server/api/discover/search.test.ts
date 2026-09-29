@@ -26,6 +26,7 @@ import {
 import { malClientIdSetting } from '@/server/db/settings/mal';
 import * as malIndex from '@/server/integrations/mal';
 import * as mangadex from '@/server/integrations/mangadex/client';
+import * as bnf from '@/server/integrations/bnf';
 import * as nu from '@/server/integrations/novelupdates';
 import { NovelUpdatesError } from '@/server/integrations/novelupdates';
 import {
@@ -40,6 +41,9 @@ import { googleBooksApiKeySetting } from '@/server/db/settings/googlebooks';
 import { GET, type DiscoverResult } from '@/app/api/discover/search/route';
 
 let tmpDir: string;
+const unexpectedFetch = vi.fn<typeof fetch>(async () => {
+  throw new Error('Unexpected real provider request in Discover search tests');
+});
 
 beforeEach(async () => {
   // Isolation: a prior seedDb test may have left BOOKKEEPRR_DB_PATH pointing at
@@ -57,6 +61,14 @@ beforeEach(async () => {
   const migrationsFolder = path.resolve(__dirname, '../../../../drizzle');
   migrate(db, { migrationsFolder });
   vi.restoreAllMocks();
+  unexpectedFetch.mockClear();
+  vi.stubGlobal('fetch', unexpectedFetch);
+  // Comics/all searches always include BnF, even without ComicVine credentials.
+  vi.spyOn(bnf, 'searchFrenchComicSeries').mockResolvedValue([]);
+  // Manga search enriches AniList/MAL hits through MangaDex by default.
+  vi.spyOn(mangadex, 'searchMangaByTitle').mockResolvedValue(null);
+  // The merged manga search also completes sparse results via title search.
+  vi.spyOn(mangadex, 'searchMangaTitles').mockResolvedValue([]);
   __resetComicVineForTests();
   __resetOpenLibraryForTests();
   // Default OpenLibrary to empty: it backs ebook search AND the novel-cover
@@ -89,15 +101,22 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  vi.restoreAllMocks();
-  __resetComicVineForTests();
-  __resetOpenLibraryForTests();
-  __resetAudnexForTests();
-  __resetITunesForTests();
-  __resetGoogleBooksForTests();
-  await closeDb();
-  delete process.env.BOOKKEEPRR_DB_PATH;
-  rmSync(tmpDir, { recursive: true, force: true });
+  try {
+    // Provider code may catch fetch errors: rejection alone cannot enforce
+    // isolation. Fail the test on any attempted real request as well.
+    expect(unexpectedFetch).not.toHaveBeenCalled();
+  } finally {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    __resetComicVineForTests();
+    __resetOpenLibraryForTests();
+    __resetAudnexForTests();
+    __resetITunesForTests();
+    __resetGoogleBooksForTests();
+    await closeDb();
+    delete process.env.BOOKKEEPRR_DB_PATH;
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 function req(qs: string): Request {
