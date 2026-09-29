@@ -43,6 +43,31 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the hydration provider-isolation NEXT ACTION on `chore/work-checkpoint-system`.
+Verified test commit: `6775d36273558989893ba93773b1e90e0732a282`.
+Session date: 2026-09-29 (Europe/Paris).
+
+### DONE: hermetic ebook / Google Books hydration tests
+- Initial Git state was clean at `ac20f9c` and matched the fetched branch. Preserved all existing work.
+- In `ebook-hydrate-ol-fallback.test.ts`, explicitly mock Open Library work/alias and work-edition lookups with empty defaults; existing per-case provider responses and routing assertions still override these defaults.
+- In `googlebooks-hydrate.test.ts`, explicitly mock targeted Google Books edition search and subsequent Open Library title search with empty defaults. Reapply these defaults after the stale-placeholder test restores mocks between its two hydrations.
+- Both files block global fetch with a rejecting spy and assert zero calls after every test. Restore globals/spies and clean the temporary database in finally, even when the guard assertion fails.
+- Preserved all existing behavior assertions, test cases and timeouts. No production hydration, provider client, dependency or global test configuration changed.
+
+### Exact verification: hydration isolation
+Commands from the repository root:
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/integration/jobs/ebook-hydrate-ol-fallback.test.ts tests/integration/jobs/googlebooks-hydrate.test.ts
+corepack pnpm@9.15.0 check:french
+```
+First and final targeted run: **18 passed, 0 failed**, two complete files (8 ebook and 10 Google Books cases), 1.25 s. Every per-test zero-fetch assertion passed, including the three previously timed-out cases.
+French gate: web TypeScript PASS; **405 passed, 0 failed**, thirty files, 6.07 s.
+`git diff --check`: PASS. Compared existing test bodies with HEAD: unchanged except the single defaults reapplication after mid-test restore. No assertions were removed/weakened and no redundant new test cases were added.
+
+### Remaining release limits
+All thirteen failures from the recorded full-suite assessment now have targeted passing reruns (OpenAPI, Discover, hydration). This is not a fresh full-suite success: the next bounded step is the complete regression rerun to verify their combined state. Live coverage, illustrated-placeholder recognition and other incomplete phases remain open. No remote CI success, live provider probe, Docker operation, publishing workflow or VM access is claimed.
+
+## PREVIOUS SESSION: Discover provider isolation
 Completed the Discover provider-isolation NEXT ACTION on `chore/work-checkpoint-system`.
 Verified test commit: `3899eadac82ac14bf17857ef356de8641393d9f0`.
 Session date: 2026-09-29 (Europe/Paris).
@@ -763,9 +788,10 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Preserve the hydration provider defaults, zero-fetch guards and finally cleanup in both fixed integration files. Do not repeat the completed isolation investigation without a new failure.
 - Preserve the Discover BnF/MangaDex mocks, per-test zero-fetch guard and finally cleanup. Reuse the passing 35-case regression file; do not repeat its completed isolation investigation without a new failure.
 - Preserve the regenerated website OpenAPI snapshot and existing freshness assertion. Do not repeat its completed synchronization without a runtime-schema change or new failing freshness test.
-- Reuse the 2026-09-29 full-suite assessment and exact failure inventory; do not repeat the broad assessment before addressing a recorded failure. The OpenAPI snapshot mismatch was resolved by commit `64fbdf6` and its focused rerun; the nine Discover timeouts were resolved by the targeted isolation fix/rerun above. Preserve the three pending hydration timeouts until relevant fixes/reruns prove them resolved.
+- Reuse the 2026-09-29 full-suite assessment and exact failure inventory; do not repeat the broad assessment before addressing a recorded failure. The OpenAPI snapshot mismatch was resolved by commit `64fbdf6` and its focused rerun; the nine Discover timeouts were resolved by the targeted isolation fix/rerun above. The three hydration timeouts were resolved by `6775d36` and the 18-case targeted rerun. A combined full-suite rerun is now required; preserve the original assessment as historical evidence.
 - Do not repeat the recorded 2026-09-28 live title probes for Les Cinq Terres, Ekhö and Les Légendaires without changed access or new provider evidence. Preserve `docs/FRENCH_LIVE_COVERAGE.md` and the raw trace; live coverage and title-to-ISBN comparison remain unverified, not empty or successful.
 - Preserve the completed explicit title-to-ISBN handoff: transfer only ISBN, re-fetch before showing add controls, retain the fresh identity/profile payload, prevent overlapping operations and never auto-add a title result. Reuse the composed-component tests and existing server revalidation/idempotence.
 - Preserve the completed read-only Discover French title panel, explicit limited-coverage wording, source links, loading/error/empty states and request lifecycle guards. Reuse its component tests; do not recreate the panel or silently convert editions into complete series.
@@ -795,7 +821,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Isolate the unmocked provider operations behind the three recorded hydration timeouts in `apps/web/tests/integration/jobs/ebook-hydrate-ol-fallback.test.ts` and `apps/web/tests/integration/jobs/googlebooks-hydrate.test.ts`: Open Library work/alias lookup and targeted Google Books edition search. Reuse the existing assessment, add explicit mocks with cleanup and a guard against real provider requests, preserve all existing behavior assertions and timeouts, and leave production hydration unchanged. Run both complete test files and `check:french`, record exact results, commit the verified isolation fix, update this checkpoint with one next action and stop. Do not run live probes, publishing workflows or touch the deployed VM.
+Run the existing full web unit/integration regression suite and `check:french` in the isolated development workspace to verify the combined OpenAPI, Discover and hydration fixes. Record exact pass/fail/skip counts and any concrete remaining failures in a new assessment, preserving the original 2026-09-29 evidence. If a failure remains, inspect only its directly relevant code/tests to choose one bounded next action; do not start another fix or repeat completed audits. Commit the assessment, update this checkpoint with the real status and exactly one next action, then stop. Keep live probes, publishing workflows, Docker publication and the deployed VM untouched.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
