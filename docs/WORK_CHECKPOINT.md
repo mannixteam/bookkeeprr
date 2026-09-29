@@ -43,6 +43,32 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the OpenAPI snapshot synchronization NEXT ACTION on `chore/work-checkpoint-system`.
+Verified snapshot commit: `64fbdf6557c59680bca911b4192f89256efbb3a7`.
+Session date: 2026-09-29 (Europe/Paris).
+
+### DONE: website OpenAPI snapshot
+- Initial Git state was clean at `16b8ec1` and matched the fetched checkpoint branch. Preserved all existing work.
+- Regenerated `apps/website/public/openapi.json` with the existing emitter and reviewed the complete diff: add the BnF ARK property/pattern, add the positive ComicVine ID constraint, remove ComicVine ID from required fields.
+- The snapshot now matches the existing runtime comic-create schema. No runtime schema, handler, test assertion, dependency or generator change.
+- Used the installed tsx import loader directly to run the same emitter, avoiding the previously documented CLI IPC issue and nested package-manager mismatch.
+
+### Exact verification: OpenAPI snapshot
+Generation from `apps/web`:
+```bash
+node --import tsx scripts/emit-openapi.ts ../../apps/website/public/openapi.json
+```
+Verification from the repository root:
+```bash
+corepack pnpm@9.15.0 --filter @bookkeeprr/web exec vitest run tests/server/openapi/snapshot-freshness.test.ts
+corepack pnpm@9.15.0 check:french
+```
+Results: snapshot freshness **1 passed, 0 failed**, one file; French gate web TypeScript PASS and **405 passed, 0 failed**, thirty files. `git diff --check`: PASS. No additional tests were needed for a generated documentation artifact; the existing freshness assertion is unchanged.
+
+### Remaining failures and release limits
+The recorded OpenAPI mismatch is resolved by the focused rerun. The twelve provider-related timeouts from the prior full-suite assessment remain unresolved; no fresh full-suite result is claimed. Discover provider isolation is the next bounded step, with hydration isolation queued separately. Live coverage/illustrated-placeholder blockers and all other incomplete release phases remain open. No remote CI success, live provider probe, Docker operation or VM access is claimed.
+
+## PREVIOUS SESSION: full web regression assessment
 Completed the full web regression assessment NEXT ACTION on `chore/work-checkpoint-system`; the full-suite release check is FAIL, not release-ready.
 Assessment commit: `b137dbd1f10ed5d18233e95d34dbf1dbf09aa614`.
 Session date: 2026-09-29 (Europe/Paris).
@@ -708,7 +734,8 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
-- Reuse the 2026-09-29 full-suite assessment and exact failure inventory; do not repeat the broad assessment before addressing a recorded failure. Preserve the twelve pending provider-isolation timeouts and the OpenAPI snapshot mismatch until a relevant fix/rerun proves them resolved.
+- Preserve the regenerated website OpenAPI snapshot and existing freshness assertion. Do not repeat its completed synchronization without a runtime-schema change or new failing freshness test.
+- Reuse the 2026-09-29 full-suite assessment and exact failure inventory; do not repeat the broad assessment before addressing a recorded failure. The OpenAPI snapshot mismatch was resolved by commit `64fbdf6` and its focused rerun; preserve the twelve pending provider-isolation timeouts until relevant fixes/reruns prove them resolved.
 - Do not repeat the recorded 2026-09-28 live title probes for Les Cinq Terres, Ekhö and Les Légendaires without changed access or new provider evidence. Preserve `docs/FRENCH_LIVE_COVERAGE.md` and the raw trace; live coverage and title-to-ISBN comparison remain unverified, not empty or successful.
 - Preserve the completed explicit title-to-ISBN handoff: transfer only ISBN, re-fetch before showing add controls, retain the fresh identity/profile payload, prevent overlapping operations and never auto-add a title result. Reuse the composed-component tests and existing server revalidation/idempotence.
 - Preserve the completed read-only Discover French title panel, explicit limited-coverage wording, source links, loading/error/empty states and request lifecycle guards. Reuse its component tests; do not recreate the panel or silently convert editions into complete series.
@@ -738,7 +765,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Synchronize `apps/website/public/openapi.json` with the existing runtime comic-create schema using the existing OpenAPI snapshot generator. Review the generated diff (BnF ARK support and ComicVine identifier optionality/positive constraint); do not change runtime behavior or weaken the freshness assertion. Run `tests/server/openapi/snapshot-freshness.test.ts` and `check:french`, record exact results, commit the verified snapshot, update this checkpoint with one next action and stop. Do not bundle Discover/hydration timeout fixes, live probes, publishing workflows or VM changes into this step.
+Make `apps/web/tests/server/api/discover/search.test.ts` hermetic for the recorded BnF and MangaDex paths using explicit provider mocks and appropriate reset/cleanup. Preserve all existing result, error and provider-gating assertions; do not increase timeouts or alter production search behavior. Verify that the file cannot make real provider requests, run that test file and `check:french`, record exact results, commit the validated test-isolation fix, update this checkpoint with one next action and stop. Leave the three hydration timeouts, live probes, publishing workflows and VM untouched in this step.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
