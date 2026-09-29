@@ -39,10 +39,27 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Validate existing BnF/DLP cover candidates at the image serving/cache boundary.
 - [x] Implement ordered BnF-to-DLP cover fallback for the selected edition.
 - [ ] Add provider-specific illustrated-placeholder fixtures/recognition.
-- [x] Add a reproducible French regression command and dedicated CI gate (307 tests plus web TypeScript).
+- [x] Add a reproducible French regression command and dedicated CI gate (currently 405 selected tests plus web TypeScript; remote gate verified below).
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Completed the existing French catalog remote CI verification NEXT ACTION on `chore/work-checkpoint-system`.
+Evidence commit: `da37d8623cf48812ee6a30330ddb2da44bb6b5f1`.
+Assessed branch head: `b94905c173734efd056c6fdac63fe9e66975684d`.
+Session date: 2026-09-29 (Europe/Paris).
+
+### DONE: remote French catalog verification
+- Initial Git state was clean and matched the fetched branch; all existing work is preserved.
+- GitHub confirmed French catalog PR run **36552116857**, attempt 1, head `b94905c`, **completed / success**. Job **109352610355**, `French catalog - typecheck and regressions`, also **completed / success**; dependency installation and `Check French catalog` succeeded.
+- Verified ancestry from `ee348cb` and documentation-only differences: the assessed head contains all three regression fixes. Workflow configuration remains non-publishing, Node 22 / pnpm 9.15.0, frozen lockfile and `pnpm check:french`.
+- Exact SHA, timestamps, API evidence, job steps and limitations are recorded in `docs/FRENCH_CATALOG_CI_VERIFICATION.md`. The run wrapper is PR-only; an unsupported workflow collection URL was rejected, but the individual run/job reads succeeded. No push-run result is claimed.
+- Evidence consistency and `git diff --check`: PASS. No failed gate required log inspection; no logs were downloaded and no independently counted remote test total is claimed.
+- No local suite was repeated for this evidence-only action, as explicitly required. Reuse the earlier 405-test French gate and 3,994-pass / 3-skip full-suite evidence below. No behavior/test/configuration change, workflow dispatch, provider probe, Docker operation or VM access.
+
+### Remaining release limits
+Fresh remote French CI verification is complete for the exact assessed head/run, not for future documentation commits. Browser validation, live coverage, illustrated placeholders and other unchecked phases remain open. This is not release-candidate approval.
+
+## PREVIOUS SESSION: combined full-suite rerun
 Completed the combined full web regression rerun NEXT ACTION on `chore/work-checkpoint-system`.
 Assessment commit: `2cdafc1e0918019023902c26bcfeff86c3958ee7`.
 Assessed code/checkpoint commit: `ee348cb21693c089a4bb16e22d7ada0d5d24285d`.
@@ -813,6 +830,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse the verified French catalog PR run `36552116857` / job `109352610355` on `b94905c` (success). Do not repeat remote CI investigation without a relevant change or new failure; this does not establish live coverage, browser validation or release readiness.
 - Reuse the passing full-suite rerun assessment on `ee348cb` (3,994 passed / 3 skipped) and French gate (405 passed); no new broad audit is needed. Local success is not remote CI, live coverage or release approval.
 - Preserve the hydration provider defaults, zero-fetch guards and finally cleanup in both fixed integration files. Do not repeat the completed isolation investigation without a new failure.
 - Preserve the Discover BnF/MangaDex mocks, per-test zero-fetch guard and finally cleanup. Reuse the passing 35-case regression file; do not repeat its completed isolation investigation without a new failure.
@@ -847,7 +865,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Verify the existing non-publishing French catalog GitHub Actions runs for `ee348cb` or a descendant containing all three regression fixes. Record the exact assessed commit, run/job IDs and pass/fail status; inspect only relevant logs if a run fails and choose one bounded follow-up. If no matching run is available, record that limitation without claiming success. Commit the CI evidence, update this checkpoint with the real state and exactly one next action, then stop. Do not repeat local suites merely to substitute for remote CI, dispatch publishing workflows, probe providers or touch the deployed VM.
+Validate the completed Discover French title → fresh ISBN verification → explicit edition-add flow in a real browser using an isolated development/test instance and deterministic mocked provider/API responses. Cover desktop and tablet-sized viewports, keyboard access, no automatic add, fresh-result identity/profile submission, and one retryable lookup failure without stale add controls. Reuse existing fixtures and component tests; do not repeat catalog/provider investigations. Record exact setup, viewport/scenarios and observed results, fix only a reproduced issue in this flow with relevant regression tests, or record a concrete browser/setup blocker without claiming success. Commit verified changes/evidence, update this checkpoint with exactly one next action, then stop. Do not probe live providers, publish/deploy or access the user's VM.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
