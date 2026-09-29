@@ -13,12 +13,31 @@ import * as gbClient from '@/server/integrations/googlebooks/client';
 import * as ol from '@/server/integrations/openlibrary';
 
 let h: SeedHandle;
+const unexpectedFetch = vi.fn<typeof fetch>(async () => {
+  throw new Error('Unexpected real provider request in hydration tests');
+});
+
+function mockProviderDefaults() {
+  // Work lookup also runs for alias enrichment after metadata hydration.
+  vi.spyOn(ol, 'getWork').mockResolvedValue(null);
+  vi.spyOn(ol, 'getWorkEdition').mockResolvedValue({ isbn: null, pages: null });
+}
+
 beforeEach(async () => {
+  unexpectedFetch.mockClear();
+  vi.stubGlobal('fetch', unexpectedFetch);
+  mockProviderDefaults();
   h = await seedDb({ skipDefaultSeries: true });
 });
 afterEach(() => {
-  h.cleanup();
-  vi.restoreAllMocks();
+  try {
+    // Hydration catches provider failures, so also assert that none occurred.
+    expect(unexpectedFetch).not.toHaveBeenCalled();
+  } finally {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    h.cleanup();
+  }
 });
 
 async function makeEbook(opts: {
