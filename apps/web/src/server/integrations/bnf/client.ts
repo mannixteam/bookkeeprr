@@ -112,7 +112,10 @@ function cleanRelation(raw: string): string {
 
 function ordinalFromRelation(relation: string): number | null {
   const explicit = relation.match(/\b(?:tomes?|t\.|volumes?|vol\.?)\s*0*(\d{1,3})\b/i);
-  if (explicit?.[1]) return Number(explicit[1]);
+  if (explicit?.[1]) {
+    const n = Number(explicit[1]);
+    return n >= 1 && n <= 300 ? n : null;
+  }
   const trailing = relation.match(/[.;]\s*0*(\d{1,3})\s*$/);
   if (trailing?.[1]) {
     const n = Number(trailing[1]);

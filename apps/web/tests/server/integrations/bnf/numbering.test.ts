@@ -52,3 +52,13 @@ it.each([
   expect(hit?.name).toBe('Série test');
   expect(hit?.volumes).toMatchObject([{ ark: 'ark:/12148/cb12345671x', number: expected }]);
 });
+
+it.each([
+  { tome: 0, expected: null }, { tome: 1, expected: 1 },
+  { tome: 300, expected: 300 }, { tome: 301, expected: null },
+])('bounds a relation-only Tome $tome to ordinal $expected', async ({ tome, expected }) => {
+  const notice = record(1, 'Album A', `<relation>Appartient à : Série test, Tome ${tome}</relation>`);
+  vi.stubGlobal('fetch', vi.fn(async () => xml(notice)));
+  const [hit] = await searchFrenchComicSeries('Série test');
+  expect(hit?.volumes).toMatchObject([{ ark: 'ark:/12148/cb12345671x', number: expected }]);
+});
