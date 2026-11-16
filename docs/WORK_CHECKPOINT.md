@@ -39,10 +39,15 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Validate existing BnF/DLP cover candidates at the image serving/cache boundary.
 - [x] Implement ordered BnF-to-DLP cover fallback for the selected edition.
 - [ ] Add provider-specific illustrated-placeholder fixtures/recognition.
-- [x] Add a reproducible French regression command and dedicated CI gate (currently 405 selected tests plus web TypeScript; remote gate verified below).
+- [x] Add a reproducible French regression command and dedicated CI gate (currently 408 selected tests plus web TypeScript; remote gate verified below).
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Conflicting explicit BnF series relations: fixed in `461be9b9d1565b3aaf9ab5f67d97cd9e7e644c76` (2026-11-16). Two distinct normalized explicit series titles now isolate the notice by ARK; its own album title is displayed. A coincidentally matching album title cannot attach it to a claimed series. Equivalent explicit labels and unambiguous grouping retain the previous behavior.
+
+The mocked SRU fixture compares each confirmed group's full result before and after adding the conflicting notice, in both relation orders. Both previously appended tome 3 to Cycle bleu. Isolated Vitest 4.1.8 grouping file: **10 passed, 2 failed before; 12 passed, 0 failed after**. The equivalent-label case passed both times. The [French catalog push job](https://github.com/mannixteam/bookkeeprr/actions/runs/43930858740/job/133522542050) on the fix passed TypeScript and **408 tests in 30 files**. Git whitespace check passed. No provider probe or VM access. Conflicting ordinal evidence within a single series was not assessed here.
+
+## PREVIOUS SESSION: browser validation passed
 French Discover browser check completed 2026-11-16: **2 viewport scenarios passed, 0 failed** on Chrome 157.0.8103.50. Commit `f47cba95e84245437df666b2729daf4292817390`, GitHub run 43927424006 / job 133510475455. The [report](FRENCH_BROWSER_VALIDATION.md) records setup, keyboard and layout checks, exact submission and error recovery. Real components and CSS, mocked API, no production changes or VM access. This closes the scoped browser check only.
 
 ## PREVIOUS SESSION: browser provisioning blocker
@@ -838,6 +843,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse the tested ARK isolation for contradictory explicit series titles, including reversed input and album-title collision. Do not reopen that grouping case without new evidence.
 - Reuse the two passing browser scenarios and recorded CI evidence; do not repeat browser setup or the completed desktop/tablet investigation without a relevant change.
 - Preserve the browser setup evidence in `18775f3`; do not repeat the failed provisioning attempt under unchanged conditions or count its passing component checks as browser evidence.
 - Reuse the verified French catalog PR run `36552116857` / job `109352610355` on `b94905c` (success). Do not repeat remote CI investigation without a relevant change or new failure; this does not establish live coverage, browser validation or release readiness.
@@ -875,7 +881,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Test BnF grouping for one notice with two conflicting explicit series-title relations: reverse their input order and verify that the ambiguous notice cannot merge unrelated series or alter their volumes. If the regression reproduces, fix only the ambiguous relation selection conservatively and run the focused grouping tests plus the French gate. Preserve existing unambiguous grouping rules.
+Test a BnF album with no title ordinal and two explicit relations naming the same series but assigning different tome numbers. Reverse the relation order and verify that neither order assigns a numbered volume. If reproduced, resolve only this conflicting ordinal conservatively, preserve agreement and title-derived ordinals, then run the focused numbering regressions and French gate.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
