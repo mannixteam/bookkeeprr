@@ -39,10 +39,15 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Validate existing BnF/DLP cover candidates at the image serving/cache boundary.
 - [x] Implement ordered BnF-to-DLP cover fallback for the selected edition.
 - [ ] Add provider-specific illustrated-placeholder fixtures/recognition.
-- [x] Add a reproducible French regression command and dedicated CI gate (currently 412 selected tests plus web TypeScript; remote gate verified below).
+- [x] Add a reproducible French regression command and dedicated CI gate (currently 416 selected tests plus web TypeScript; remote gate verified below).
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Explicit tome bounds in BnF relations: fixed in `b156c8c804ab9e31e1ca799676cddd4bcdaa6d15` (2026-11-16). On an album without a numbered title, the explicit relation parser previously returned 0 and 301. It now returns an unknown ordinal for these out-of-range values and keeps both inclusive endpoints, 1 and 300. Only the explicit-number branch changed.
+
+Focused Vitest 4.1.8 numbering file with mocked SRU: **2 failed, 11 passed before; 13 passed, 0 failed after**. All four boundary cases assert that the album is retained. The [French catalog push job](https://github.com/mannixteam/bookkeeprr/actions/runs/43935573798/job/133539151125) passed web TypeScript and **416 tests in 30 files**. Whitespace check passed. No live provider or VM access.
+
+## PREVIOUS SESSION: contradictory relation ordinals
 Contradictory relation ordinals: fixed in `69c5dac3b9275c43a83438b63b7f7eb429c565d3` (2026-11-16). With no title ordinal, two relations naming Série test but assigning tome 2 and tome 5 previously selected the first ordinal in input order. Now the album stays in the series with a null ordinal in either order. Repeated equivalent numbers still agree, relations without numbers do not vote, and a title-derived ordinal retains precedence. Parsing syntax, grouping and persistence are unchanged.
 
 Focused Vitest 4.1.8 numbering file with mocked SRU, in an isolated test workspace: **2 failed / 7 passed before**, **9 passed / 0 failed after**. Four new cases cover both conflict orders, equivalent 2/02, and an explicit title tome 4. The [French catalog push job](https://github.com/mannixteam/bookkeeprr/actions/runs/43931742255/job/133525684174) on the fix passed TypeScript and **412 tests in 30 files**. Git whitespace check passed. No provider or VM access.
@@ -848,6 +853,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse the four passing relation-only tome boundary cases; do not revisit these parser bounds without a new failure.
 - Reuse the tested conflict/consensus rule for ordinals across BnF relations; do not repeat the order-reversal investigation without a new failure.
 - Reuse the tested ARK isolation for contradictory explicit series titles, including reversed input and album-title collision. Do not reopen that grouping case without new evidence.
 - Reuse the two passing browser scenarios and recorded CI evidence; do not repeat browser setup or the completed desktop/tablet investigation without a relevant change.
@@ -887,7 +893,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Verify the bounds for a single explicit tome number in a BnF relation on an album with no title ordinal: test 0 and 301 against the existing 1–300 bounds, with 1 and 300 as valid controls. If reproduced, align only that relation parser branch with the existing bounds, then run the focused numbering file and French gate.
+Implement and unit-test the edition merge rule needed for future French title supplementation, without activating a provider request: given eligible BnF and verified Open Library edition candidates, preserve BnF order and metadata on a shared canonical EAN, append only distinct verified EANs in source order, and retain same-title editions with different EANs. Reuse the existing validated edition types and canonical identifier helper. Keep the current title endpoint behavior unchanged in this step.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
