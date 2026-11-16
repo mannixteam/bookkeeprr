@@ -110,17 +110,26 @@ function cleanRelation(raw: string): string {
   );
 }
 
-function relationNumber(relations: string[]): number | null {
-  for (const relation of relations) {
-    const explicit = relation.match(/\b(?:tomes?|t\.|volumes?|vol\.?)\s*0*(\d{1,3})\b/i);
-    if (explicit?.[1]) return Number(explicit[1]);
-    const trailing = relation.match(/[.;]\s*0*(\d{1,3})\s*$/);
-    if (trailing?.[1]) {
-      const n = Number(trailing[1]);
-      if (n >= 1 && n <= 300) return n;
-    }
+function ordinalFromRelation(relation: string): number | null {
+  const explicit = relation.match(/\b(?:tomes?|t\.|volumes?|vol\.?)\s*0*(\d{1,3})\b/i);
+  if (explicit?.[1]) return Number(explicit[1]);
+  const trailing = relation.match(/[.;]\s*0*(\d{1,3})\s*$/);
+  if (trailing?.[1]) {
+    const n = Number(trailing[1]);
+    if (n >= 1 && n <= 300) return n;
   }
   return null;
+}
+
+function relationNumber(relations: string[]): number | null {
+  let agreed: number | null = null;
+  for (const relation of relations) {
+    const candidate = ordinalFromRelation(relation);
+    if (candidate === null) continue;
+    if (agreed !== null && candidate !== agreed) return null;
+    agreed = candidate;
+  }
+  return agreed;
 }
 
 function titleAndVolume(raw: string, context: string): { baseTitle: string; number: number | null } {

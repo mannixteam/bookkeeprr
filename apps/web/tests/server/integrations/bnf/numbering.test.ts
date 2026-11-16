@@ -37,3 +37,18 @@ it('keeps the selected unnumbered notice unnumbered during hydration', async () 
   const hit = await getFrenchComicSeries('ark:/12148/cb12345671x', 'Série test');
   expect(hit.volumes.find(v => v.ark === 'ark:/12148/cb12345671x')?.number).toBeNull();
 });
+
+const relationA = 'Titre d’ensemble : Série test ; 2';
+const relationB = 'Appartient à : Série test ; 5';
+it.each([
+  { title: 'Album A', relations: [relationA, relationB], expected: null },
+  { title: 'Album A', relations: [relationB, relationA], expected: null },
+  { title: 'Album A', relations: [relationA, 'Appartient à : Série test ; 02'], expected: 2 },
+  { title: 'Album A. Tome 4', relations: [relationA, relationB], expected: 4 },
+])('resolves $title with $relations to ordinal $expected', async ({ title, relations, expected }) => {
+  const notice = record(1, title, relations.map(value => `<relation>${value}</relation>`).join(''));
+  vi.stubGlobal('fetch', vi.fn(async () => xml(notice)));
+  const [hit] = await searchFrenchComicSeries('Série test');
+  expect(hit?.name).toBe('Série test');
+  expect(hit?.volumes).toMatchObject([{ ark: 'ark:/12148/cb12345671x', number: expected }]);
+});
