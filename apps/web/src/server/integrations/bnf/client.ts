@@ -367,31 +367,24 @@ function bestRelationForQuery(record: ParsedRecord, query: string): string | nul
   return candidates[0]?.raw ?? null;
 }
 
-function explicitSeriesTitle(record: ParsedRecord): string | null {
+function seriesGroup(record: ParsedRecord, query: string) {
   // A publisher's Collection label alone is not proof of a numbered series.
   const candidates = record.relations
     .filter(relation => /^\s*(?:appartient\s+[àa]\s*:|titre\s+d['’]ensemble\s*:?)\s*/i.test(relation))
     .map(cleanRelation)
     .filter(title => title.length >= 3 && title.length <= 140 && !extractArk(title))
     .sort((a, b) => a.localeCompare(b));
-  return candidates[0] ?? null;
-}
-
-function groupTitle(record: ParsedRecord, query: string): string {
-  const explicit = explicitSeriesTitle(record);
-  if (record.compilation) {
-    const series = explicit ?? bestRelationForQuery(record, query) ?? record.baseTitle;
-    return `${series}${COMPILATION_LABEL}`;
-  }
-  if (explicit) return explicit;
-  if (record.rawNumber != null) return record.baseTitle;
-  return bestRelationForQuery(record, query) ?? record.baseTitle;
-}
-
-function groupKey(record: ParsedRecord, query: string): string {
-  // Exact normalized creator sets deliberately keep uncertain teams apart.
-  // Missing creators form their own bucket and cannot bridge known conflicts.
-  return JSON.stringify([norm(groupTitle(record, query)), norm(record.publisher), record.creatorKey, record.compilation]);
+  const explicit = candidates[0];
+  const ambiguous = explicit !== undefined && candidates.some(title => norm(title) !== norm(explicit));
+  // Keep the edition discoverable by its own ARK. Neither the query nor an
+  // album title matching a claimed series resolves conflicting assertions.
+  const base = ambiguous ? record.baseTitle : explicit ??
+    ((record.compilation || record.rawNumber == null) ? bestRelationForQuery(record, query) : null) ??
+    record.baseTitle;
+  const title = record.compilation ? base + COMPILATION_LABEL : base;
+  const key = ambiguous ? record.ark :
+    JSON.stringify([norm(title), norm(record.publisher), record.creatorKey, record.compilation]);
+  return { title, key };
 }
 
 function recordQuality(record: ParsedRecord): number {
@@ -428,7 +421,7 @@ function finalizeGroup(records: ParsedRecord[], query: string, preferredArk?: st
   const first = selected[0]!.record;
   const canonical = selected.find(({ record }) => record.ark === preferredArk)?.record
     ?? selected.find(({ number }) => number === 1)?.record ?? first;
-  const name = groupTitle(canonical, query);
+  const name = seriesGroup(canonical, query).title;
   const volumes: BnfComicVolume[] = selected.map(({ record, number }) => ({
     ark: record.ark,
     number,
@@ -478,9 +471,8 @@ function groupRecords(records: ParsedRecord[], query: string, preferredArk?: str
   for (const record of records) {
     if (!isConfirmedFrench(record)) continue;
     if (!record.comicLike && !publisherLooksComic(record.publisher)) continue;
-    const title = groupTitle(record, query);
+    const { title, key } = seriesGroup(record, query);
     if (!norm(title)) continue;
-    const key = groupKey(record, query);
     const list = groups.get(key) ?? [];
     list.push(record);
     groups.set(key, list);

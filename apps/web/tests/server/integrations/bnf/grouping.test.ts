@@ -1,8 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { getFrenchComicSeries, searchFrenchComicSeries } from '@/server/integrations/bnf';
 
-function record(id: number, options: { title?: string; creator?: string; publisher?: string; relation?: string; contributor?: string } = {}) {
-  return `<record><recordData><dc><identifier>ark:/12148/cb1234567${id}x</identifier><title>${options.title ?? `Mirage. Tome ${id}`}</title><publisher>${options.publisher ?? 'Delcourt'}</publisher><language>fre</language>${options.creator ? `<creator>${options.creator}</creator>` : ''}${options.contributor ? `<contributor>${options.contributor}</contributor>` : ''}${options.relation ? `<relation>${options.relation}</relation>` : ''}</dc></recordData></record>`;
+function record(id: number, options: { title?: string; creator?: string; publisher?: string; relation?: string | string[]; contributor?: string } = {}) {
+  const relations = [options.relation ?? []].flat().map(value => `<relation>${value}</relation>`).join('');
+  return `<record><recordData><dc><identifier>ark:/12148/cb1234567${id}x</identifier><title>${options.title ?? `Mirage. Tome ${id}`}</title><publisher>${options.publisher ?? 'Delcourt'}</publisher><language>fre</language>${options.creator ? `<creator>${options.creator}</creator>` : ''}${options.contributor ? `<contributor>${options.contributor}</contributor>` : ''}${relations}</dc></recordData></record>`;
 }
 const response = (xml: string) => new Response(`<searchRetrieveResponse><records>${xml}</records></searchRetrieveResponse>`);
 async function search(xml: string) {
@@ -60,4 +61,28 @@ it('does not mistake a shared publisher collection for a numbered series', async
   const common = { creator: 'Alice Martin', relation: 'Collection : Romans graphiques' };
   const hits = await search(record(1, { ...common, title: 'Mirage. Tome 1' }) + record(2, { ...common, title: 'Autre œuvre. Tome 1' }));
   expect(hits.map(h => h.name).sort()).toEqual(['Autre œuvre', 'Mirage']);
+});
+
+const red = 'Titre d’ensemble : Cycle rouge';
+const blue = 'Appartient à : Cycle bleu';
+it.each([[red, blue], [blue, red]])('isolates a notice claiming both %s and %s', async (first, second) => {
+  const confirmed = record(1, { relation: red }) + record(2, { relation: blue });
+  // Even the album's own base title collides with one claimed series.
+  const ambiguous = record(3, { title: 'Cycle bleu. Tome 3', relation: [first, second] });
+  const hits = await search(confirmed + ambiguous);
+  const baseline = await search(confirmed);
+  for (const group of baseline) {
+    expect(hits.find(hit => hit.bnfArk === group.bnfArk)).toEqual(group);
+  }
+  expect(hits).toHaveLength(3);
+  const isolated = hits.find(hit => hit.bnfArk === 'ark:/12148/cb12345673x');
+  expect(isolated?.volumes.map(v => v.ark)).toEqual(['ark:/12148/cb12345673x']);
+});
+
+it('accepts equivalent explicit series labels as one title', async () => {
+  const hits = await search(record(1, { relation: red }) + record(2, {
+    relation: [red, 'Appartient à : CYCLE ROUGE ; 2'],
+  }));
+  expect(hits).toHaveLength(1);
+  expect(hits[0]?.volumeCount).toBe(2);
 });
