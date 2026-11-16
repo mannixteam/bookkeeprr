@@ -43,6 +43,11 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+French Discover browser validation: **BLOCKED before launch**. The [browser report](FRENCH_BROWSER_VALIDATION.md) records the attempt on `752f7bb75a574fca9bb07e7851f6101dfa5a64fe` on 2026-09-29. Evidence commit `18775f33515b1aaf7545a5904d24ba227a58080b` added only that report. The missing checkpoint handoff was completed on 2026-11-16.
+
+Playwright 1.60.0 lacked its Chromium executable. The browser installer received an invalid archive; the headless-shell attempt timed out. No isolated application started, and neither desktop nor tablet scenarios ran. The existing component checks passed **32 tests, 0 failures in 3 files** under jsdom during the recorded attempt. No application defect was established. No tests or downloads were repeated to complete this documentation handoff. Browser validation and release readiness remain open.
+
+## PREVIOUS SESSION: remote French catalog verification
 Completed the existing French catalog remote CI verification NEXT ACTION on `chore/work-checkpoint-system`.
 Evidence commit: `da37d8623cf48812ee6a30330ddb2da44bb6b5f1`.
 Assessed branch head: `b94905c173734efd056c6fdac63fe9e66975684d`.
@@ -830,6 +835,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Preserve the browser setup evidence in `18775f3`; do not repeat the failed provisioning attempt under unchanged conditions or count its passing component checks as browser evidence.
 - Reuse the verified French catalog PR run `36552116857` / job `109352610355` on `b94905c` (success). Do not repeat remote CI investigation without a relevant change or new failure; this does not establish live coverage, browser validation or release readiness.
 - Reuse the passing full-suite rerun assessment on `ee348cb` (3,994 passed / 3 skipped) and French gate (405 passed); no new broad audit is needed. Local success is not remote CI, live coverage or release approval.
 - Preserve the hydration provider defaults, zero-fetch guards and finally cleanup in both fixed integration files. Do not repeat the completed isolation investigation without a new failure.
@@ -865,7 +871,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Validate the completed Discover French title → fresh ISBN verification → explicit edition-add flow in a real browser using an isolated development/test instance and deterministic mocked provider/API responses. Cover desktop and tablet-sized viewports, keyboard access, no automatic add, fresh-result identity/profile submission, and one retryable lookup failure without stale add controls. Reuse existing fixtures and component tests; do not repeat catalog/provider investigations. Record exact setup, viewport/scenarios and observed results, fix only a reproduced issue in this flow with relevant regression tests, or record a concrete browser/setup blocker without claiming success. Commit verified changes/evidence, update this checkpoint with exactly one next action, then stop. Do not probe live providers, publish/deploy or access the user's VM.
+Run the documented French Discover browser scenarios on an isolated development or non-publishing CI runner with working Chromium. Use deterministic mocked API responses at 1440×900 and 768×1024; check keyboard operation, no automatic add, fresh ISBN identity and selected profile in the explicit POST, and retry after a failed lookup with no stale add controls. Record browser version and observed outcomes. Do not repeat the broken download on the same setup, probe live providers or access the VM.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
