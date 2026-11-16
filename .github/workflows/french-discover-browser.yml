@@ -1,0 +1,28 @@
+name: French Discover browser
+on:
+  push:
+    branches: [chore/work-checkpoint-system]
+    paths:
+      - 'apps/web/tests/browser/french-discover.mjs'
+      - 'apps/web/src/app/(app)/discover/French*.tsx'
+      - '.github/workflows/french-discover-browser.yml'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: pnpm install --frozen-lockfile
+      - name: Check French Discover in runner Chrome
+        working-directory: apps/web
+        run: node tests/browser/french-discover.mjs
