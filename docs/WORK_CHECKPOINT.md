@@ -43,6 +43,9 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+French Discover browser check completed 2026-11-16: **2 viewport scenarios passed, 0 failed** on Chrome 157.0.8103.50. Commit `f47cba95e84245437df666b2729daf4292817390`, GitHub run 43927424006 / job 133510475455. The [report](FRENCH_BROWSER_VALIDATION.md) records setup, keyboard and layout checks, exact submission and error recovery. Real components and CSS, mocked API, no production changes or VM access. This closes the scoped browser check only.
+
+## PREVIOUS SESSION: browser provisioning blocker
 French Discover browser validation: **BLOCKED before launch**. The [browser report](FRENCH_BROWSER_VALIDATION.md) records the attempt on `752f7bb75a574fca9bb07e7851f6101dfa5a64fe` on 2026-09-29. Evidence commit `18775f33515b1aaf7545a5904d24ba227a58080b` added only that report. The missing checkpoint handoff was completed on 2026-11-16.
 
 Playwright 1.60.0 lacked its Chromium executable. The browser installer received an invalid archive; the headless-shell attempt timed out. No isolated application started, and neither desktop nor tablet scenarios ran. The existing component checks passed **32 tests, 0 failures in 3 files** under jsdom during the recorded attempt. No application defect was established. No tests or downloads were repeated to complete this documentation handoff. Browser validation and release readiness remain open.
@@ -835,6 +838,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse the two passing browser scenarios and recorded CI evidence; do not repeat browser setup or the completed desktop/tablet investigation without a relevant change.
 - Preserve the browser setup evidence in `18775f3`; do not repeat the failed provisioning attempt under unchanged conditions or count its passing component checks as browser evidence.
 - Reuse the verified French catalog PR run `36552116857` / job `109352610355` on `b94905c` (success). Do not repeat remote CI investigation without a relevant change or new failure; this does not establish live coverage, browser validation or release readiness.
 - Reuse the passing full-suite rerun assessment on `ee348cb` (3,994 passed / 3 skipped) and French gate (405 passed); no new broad audit is needed. Local success is not remote CI, live coverage or release approval.
@@ -871,7 +875,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Run the documented French Discover browser scenarios on an isolated development or non-publishing CI runner with working Chromium. Use deterministic mocked API responses at 1440×900 and 768×1024; check keyboard operation, no automatic add, fresh ISBN identity and selected profile in the explicit POST, and retry after a failed lookup with no stale add controls. Record browser version and observed outcomes. Do not repeat the broken download on the same setup, probe live providers or access the VM.
+Test BnF grouping for one notice with two conflicting explicit series-title relations: reverse their input order and verify that the ambiguous notice cannot merge unrelated series or alter their volumes. If the regression reproduces, fix only the ambiguous relation selection conservatively and run the focused grouping tests plus the French gate. Preserve existing unambiguous grouping rules.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.

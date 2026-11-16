@@ -1,4 +1,16 @@
-# French Discover browser validation — 2026-09-29
+# French Discover browser validation
+
+## 2026-11-16: passed on desktop and tablet viewports
+
+[GitHub Actions run 43927424006, job 133510475455](https://github.com/mannixteam/bookkeeprr/actions/runs/43927424006/job/133510475455) completed successfully on commit `f47cba95e84245437df666b2729daf4292817390`. The log reports Chrome **157.0.8103.50** on the Ubuntu runner. Both 1440×900 and 768×1024 passed; zero failed.
+
+The test bundles the unchanged FrenchEditionDiscovery React components and the application's compiled CSS. Playwright serves the page, assets and deterministic API fixtures by request interception in a new browser context per viewport. Unmatched requests abort and fail the test. No application server, library database, live provider or deployment is involved. To reproduce on a development runner with Chrome installed, install the frozen workspace dependencies and run `node tests/browser/french-discover.mjs` from `apps/web`.
+
+At each size, the keyboard reached the title panel, search field, ISBN verification, profile and add controls with visible focus. The page had no horizontal overflow before submission. Selecting Mirage (Open Library) displayed a fresh BnF identity. A simulated 502 on the second lookup removed the old title, profile and add button. Retrying verified the ISBN again; choosing Archives FR sent no POST until Enter activated Add. The only POST contained ISBN 9780306406157, source bnf, ARK ark:/12148/cb99999999x and profile ID 8. The returned library link pointed to /library/42.
+
+This covers the panels in a real desktop browser at two sizes, not the surrounding authenticated page, a physical tablet, live metadata or a real import. The local host had Chromium but refused its startup socket; the CI run above supplied the browser evidence without repeating the earlier download. No product fix was needed.
+
+## 2026-09-29: historical provisioning attempt
 
 Status: **BLOCKED before browser execution**, not a passing browser assessment.
 Assessed commit: `752f7bb75a574fca9bb07e7851f6101dfa5a64fe` on `chore/work-checkpoint-system`; clean initial Git state and identical fetched head.
