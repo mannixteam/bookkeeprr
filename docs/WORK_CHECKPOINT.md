@@ -39,10 +39,15 @@ Make French BD/comics/manga support reliable enough for a real test on the user'
 - [x] Validate existing BnF/DLP cover candidates at the image serving/cache boundary.
 - [x] Implement ordered BnF-to-DLP cover fallback for the selected edition.
 - [ ] Add provider-specific illustrated-placeholder fixtures/recognition.
-- [x] Add a reproducible French regression command and dedicated CI gate (currently 416 selected tests plus web TypeScript; remote gate verified below).
+- [x] Add a reproducible French regression command and dedicated CI gate (currently 422 selected tests plus web TypeScript; remote gate verified below).
 - [ ] Run full integration/regression pass and prepare a release candidate for real VM testing.
 
 ## STATUS
+Pure French edition merge rule completed 2026-11-18 in `3b8f4991d1822be67461e3d6d6b30a8ff1ffed9b`. `mergeFrenchEditions` accepts the existing formatted BnF/Open Library edition types, checks canonical EANs with the existing helper and retains the first complete candidate per EAN: BnF first in its original order, then distinct Open Library editions in their order. Same-title/different-EAN editions stay separate. No field blending, input mutation, network or library writes. Missing, invalid and noncanonical EANs are excluded, consistent with the title endpoint's eligible-candidate rule. Callers remain responsible for prior language/provider verification.
+
+Six new unit tests passed in an isolated Vitest 4.1.8 workspace (0 failures). Cases: BnF metadata/object identity priority; order and same-title distinct editions; duplicates within both sources; empty sources; input preservation; invalid/noncanonical identifiers. Added the new test file to the existing French gate. [CI run 44377765819 / job 135061406458](https://github.com/mannixteam/bookkeeprr/actions/runs/44377765819/job/135061406458) on the exact code commit passed TypeScript and **422 tests in 31 files**. Whitespace check passed. Initial local workspace was absent; recovered the exact branch from GitHub and preserved it. The current title endpoint and all provider behavior are unchanged. No live probe or VM access. Cross-provider supplementation remains inactive and its required phase remains unchecked.
+
+## PREVIOUS SESSION: explicit relation ordinal bounds
 Explicit tome bounds in BnF relations: fixed in `b156c8c804ab9e31e1ca799676cddd4bcdaa6d15` (2026-11-16). On an album without a numbered title, the explicit relation parser previously returned 0 and 301. It now returns an unknown ordinal for these out-of-range values and keeps both inclusive endpoints, 1 and 300. Only the explicit-number branch changed.
 
 Focused Vitest 4.1.8 numbering file with mocked SRU: **2 failed, 11 passed before; 13 passed, 0 failed after**. All four boundary cases assert that the album is retained. The [French catalog push job](https://github.com/mannixteam/bookkeeprr/actions/runs/43935573798/job/133539151125) passed web TypeScript and **416 tests in 30 files**. Whitespace check passed. No live provider or VM access.
@@ -853,6 +858,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 - General grouping, provider supplementation, and image-response validation remain unchecked phases above.
 
 ## DO NOT REDO
+- Reuse the tested pure French edition merge rule and its six cases. Do not recreate provider precedence or merge distinct editions by title; activation and error semantics remain separate work.
 - Reuse the four passing relation-only tome boundary cases; do not revisit these parser bounds without a new failure.
 - Reuse the tested conflict/consensus rule for ordinals across BnF relations; do not repeat the order-reversal investigation without a new failure.
 - Reuse the tested ARK isolation for contradictory explicit series titles, including reversed input and album-title collision. Do not reopen that grouping case without new evidence.
@@ -893,7 +899,7 @@ No full regression suite, CI validation, Docker build, live-provider validation,
 Each session should solve one bounded problem, run relevant tests, commit a verified checkpoint, update this file, set one next action, and stop. Prefer targeted file/code searches over rereading the whole repository.
 
 ## NEXT ACTION
-Implement and unit-test the edition merge rule needed for future French title supplementation, without activating a provider request: given eligible BnF and verified Open Library edition candidates, preserve BnF order and metadata on a shared canonical EAN, append only distinct verified EANs in source order, and retain same-title editions with different EANs. Reuse the existing validated edition types and canonical identifier helper. Keep the current title endpoint behavior unchanged in this step.
+Connect the tested merge rule to bounded French title supplementation after a successful BnF lookup, including when BnF already returned eligible editions. Preserve BnF metadata/order and existing Open Library request caps and edition verification. Define and test explicit partial-result/error semantics so a failed supplement cannot silently imply exhaustive coverage or erase valid BnF results; keep the UI informed by the response contract. Do not change ISBN import, probe live providers or access the VM. Run relevant title endpoint/component regressions and the French gate.
 
 ## RELEASE GATE
 Do not provide production deployment steps until all required phases above are complete, relevant CI/tests pass, and the resulting branch is explicitly identified as a release candidate.
