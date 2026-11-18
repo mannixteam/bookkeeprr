@@ -39,7 +39,7 @@ try {
             case 'GET /': return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="fr"><meta charset="utf-8"><link rel="stylesheet" href="/app.css"><main></main><script src="/app.js"></script></html>' });
             case 'GET /app.js': return route.fulfill({ contentType: 'application/javascript', body: bundle.outputFiles[0].text });
             case 'GET /app.css': return route.fulfill({ contentType: 'text/css', body: css });
-            case 'GET /api/discover/french-title?title=Mirage': return route.fulfill({ json: { coverage: 'bounded', source: 'openlibrary', results: [candidate] } });
+            case 'GET /api/discover/french-title?title=Mirage': return route.fulfill({ json: { coverage: 'bounded', supplement: 'succeeded', source: 'openlibrary', results: [candidate] } });
             case 'GET /api/discover/french-isbn?isbn=' + ean:
               return ++checks === 2 ? route.fulfill({ status: 502, json: { error: 'Indisponible' } }) : route.fulfill({ json: { result: fresh } });
             case 'GET /api/quality-profiles':

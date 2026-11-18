@@ -35,7 +35,7 @@ export function FrenchTitleLookup({ onSelectIsbn, selectionDisabled = false }: {
       });
       if (!response.ok) throw new Error('Recherche indisponible. Réessayez dans un instant.');
       const data: SearchResult = await response.json();
-      if (!Array.isArray(data.results) || data.coverage !== 'bounded') throw new Error('Invalid response');
+      if (!Array.isArray(data.results) || data.coverage !== 'bounded' || !['succeeded', 'failed'].includes(data.supplement)) throw new Error('Invalid response');
       if (!controller.signal.aborted) setResult(data);
     } catch {
       if (!controller.signal.aborted) setError('Recherche indisponible. Réessayez dans un instant.');
@@ -48,7 +48,7 @@ export function FrenchTitleLookup({ onSelectIsbn, selectionDisabled = false }: {
   return <details className="mb-4 rounded border p-3">
     <summary>Éditions françaises par titre</summary>
     <p className="mt-2 text-sm text-muted-foreground">
-      Recherche limitée, non exhaustive : BnF en priorité, puis Open Library si aucune édition éligible n’est trouvée.
+      Recherche limitée, non exhaustive : BnF en priorité, complétée par Open Library après une recherche BnF réussie.
       Les résultats présentent des éditions en français, sans garantir une série complète ni le genre BD/comic/manga.
     </p>
     <form className="mt-3 flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); void search(); }}>
@@ -64,6 +64,10 @@ export function FrenchTitleLookup({ onSelectIsbn, selectionDisabled = false }: {
       {busy && <p role="status">Recherche des éditions françaises en cours…</p>}
       {error && <p role="alert">{error}</p>}
       {result && <>
+        {result.supplement === 'failed' && <p role="alert">
+          Complément Open Library indisponible : seules les éditions BnF vérifiées sont affichées.
+          Réessayez la recherche pour obtenir le complément. Ces résultats restent non exhaustifs.
+        </p>}
         <p role="status">{result.results.length
           ? `${result.results.length} édition(s) affichée(s) — résultats non exhaustifs.`
           : 'Aucune édition française vérifiée trouvée dans cette recherche limitée. D’autres éditions peuvent exister.'}</p>

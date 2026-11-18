@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { FrenchTitleLookup } from '@/app/(app)/discover/FrenchTitleLookup';
 import { FrenchEditionDiscovery } from '@/app/(app)/discover/FrenchEditionDiscovery';
 
-const result = (source = 'openlibrary') => ({ source, coverage: 'bounded', results: [{
+const result = (source = 'openlibrary') => ({ source, coverage: 'bounded', supplement: 'succeeded', results: [{
   title: 'Mirage', ean: '9780306406157', language: 'fr', source,
   sourceId: source === 'bnf' ? 'ark:/12148/cb12345678x' : '/books/OL1M',
   sourceUrl: source === 'bnf' ? 'https://catalogue.bnf.fr/ark:/12148/cb12345678x' : 'https://openlibrary.org/books/OL1M',
@@ -210,4 +210,37 @@ it('aborts an ISBN handoff on unmount without starting the profile lookup after 
   cleanup(); expect(signal.aborted).toBe(true);
   await act(async () => resolve(Response.json({ result: verified() })));
   expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+it('keeps partial BnF editions selectable and clears the warning after a successful retry', async () => {
+  const onSelectIsbn = vi.fn();
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ ...result('bnf'), supplement: 'failed' }))
+    .mockResolvedValueOnce(Response.json(result()));
+  vi.stubGlobal('fetch', fetcher);
+  render(<FrenchTitleLookup onSelectIsbn={onSelectIsbn} />);
+  fireEvent.click(screen.getByText('Éditions françaises par titre')); search();
+  expect((await screen.findByRole('alert')).textContent).toContain('Complément Open Library indisponible');
+  expect(screen.getByRole('list').textContent).toContain('Bibliothèque nationale de France');
+  fireEvent.click(screen.getByRole('button', { name: 'Vérifier cet ISBN avant ajout' }));
+  expect(onSelectIsbn).toHaveBeenCalledWith('9780306406157');
+  fireEvent.click(screen.getByRole('button', { name: 'Rechercher les éditions' }));
+  await screen.findByRole('link', { name: 'Open Library' });
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+it('displays both providers in server order without blending editions', async () => {
+  const data = { ...result('bnf'), source: 'mixed', results: [...result('bnf').results,
+    { ...result().results[0]!, ean: '9782723488525' }] };
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(data))); open(); search();
+  const list = await screen.findByRole('list');
+  const items = within(list).getAllByRole('listitem');
+  expect(items[0]!.textContent).toContain('Bibliothèque nationale de France');
+  expect(items[1]!.textContent).toContain('9782723488525');
+  expect(items[1]!.textContent).toContain('Open Library');
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+it.each([undefined, 'unknown'])('rejects an absent or unknown supplement status: %s', async supplement => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ...result(), supplement })));
+  open(); search();
+  expect((await screen.findByRole('alert')).textContent).toContain('Réessayez');
+  expect(screen.queryByRole('list')).toBeNull();
 });
