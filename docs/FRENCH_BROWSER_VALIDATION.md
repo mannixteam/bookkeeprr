@@ -1,5 +1,19 @@
 # French Discover browser validation
 
+## 2026-11-19: mixed and partial title results
+
+Test commit `39631ddd64f4734b71a0df769e87b387e897339f`. [Browser run 44625532149 / job 135918207911](https://github.com/mannixteam/bookkeeprr/actions/runs/44625532149/job/135918207911): **4 scenarios passed, 0 failed**, including the two new supplementation scenarios, Chrome **157.0.8103.78**, on the exact test commit.
+
+Reused the existing Chrome workflow, real React composition, compiled application CSS and request interception. The original verification/error/retry/explicit-POST scenario is unchanged. A separate browser context adds one supplementation scenario at each existing viewport (1440×900 and 768×1024):
+
+- Return `supplement: "failed"` with a retained BnF edition. Assert the warning names the unavailable Open Library supplement, identifies BnF-only results and offers retry. Check the entire warning is in the viewport after scrolling, its text wraps, and the page has no horizontal overflow.
+- Verify the single retained edition's title, canonical ISBN and exact BnF source URL. Reach its selection button with Tab and visible focus, then activate it with Enter.
+- Require a new exact-ISBN GET, display its different fresh title/ARK and the same canonical ISBN, and load quality profiles. The add control becomes available, but no POST occurs.
+- Reach the title-search button by keyboard and retry. Return two same-title editions with different EANs, BnF first and Open Library second. Assert both rows' order, ISBNs, source names and exact URLs, the non-exhaustive result count, absence of the old warning, and no horizontal overflow.
+- Assert exactly two title reads, one ISBN verification and one profile read; no POST or unmatched request in the added scenario. All unmatched requests abort, including live provider traffic.
+
+No runtime code, dependency, lockfile, workflow or VM change. Local `node --check apps/web/tests/browser/french-discover.mjs` and `git diff --check` passed. Reused CI Chrome instead of repeating the documented local browser provisioning failure. These checks verify mocked panel behavior, not live catalog coverage, the surrounding authenticated page, a physical tablet or a real library import.
+
 ## 2026-11-16: passed on desktop and tablet viewports
 
 [GitHub Actions run 43927424006, job 133510475455](https://github.com/mannixteam/bookkeeprr/actions/runs/43927424006/job/133510475455) completed successfully on commit `f47cba95e84245437df666b2729daf4292817390`. The log reports Chrome **157.0.8103.50** on the Ubuntu runner. Both 1440×900 and 768×1024 passed; zero failed.
