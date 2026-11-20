@@ -4,8 +4,8 @@ const record = (id: number, title: string, extra = '') => `<record><recordData><
 const xml = (records: string) => new Response(`<searchRetrieveResponse><records>${records}</records></searchRetrieveResponse>`);
 afterEach(() => vi.unstubAllGlobals());
 it('keeps named albums unnumbered regardless of dates or response order', async () => {
-  const a = record(1, 'Album A', '<date>2020</date>');
-  const b = record(2, 'Album B', '<date>1990</date>');
+  const a = record(1, 'Album A', '<date>2020</date><relation>Titre d’ensemble : Série test</relation>');
+  const b = record(2, 'Album B', '<date>1990</date><relation>Titre d’ensemble : Série test</relation>');
   const fetcher = vi.fn().mockResolvedValueOnce(xml(a + b)).mockResolvedValueOnce(xml(b + a));
   vi.stubGlobal('fetch', fetcher);
   for (let i = 0; i < 2; i++) {
@@ -16,7 +16,7 @@ it('keeps named albums unnumbered regardless of dates or response order', async 
   }
 });
 it('retains unnumbered albums alongside explicit numbered volumes', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => xml(record(1, 'Série test. Tome 3') + record(2, 'Album spécial'))));
+  vi.stubGlobal('fetch', vi.fn(async () => xml(record(1, 'Série test. Tome 3') + record(2, 'Album spécial', '<relation>Titre d’ensemble : Série test</relation>'))));
   const [hit] = await searchFrenchComicSeries('Série test');
   expect(hit?.volumes.map(v => v.number)).toEqual([3, null]);
   expect(hit?.volumeCount).toBe(2);
