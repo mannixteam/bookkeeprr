@@ -7,12 +7,31 @@ import * as gb from '@/server/integrations/googlebooks';
 import * as ol from '@/server/integrations/openlibrary';
 
 let h: SeedHandle;
+const unexpectedFetch = vi.fn<typeof fetch>(async () => {
+  throw new Error('Unexpected real provider request in hydration tests');
+});
+
+function mockProviderDefaults() {
+  // Cover gaps can trigger both targeted GB and subsequent OL title lookup.
+  vi.spyOn(gb, 'searchVolumeEdition').mockResolvedValue([]);
+  vi.spyOn(ol, 'searchBooks').mockResolvedValue([]);
+}
+
 beforeEach(async () => {
+  unexpectedFetch.mockClear();
+  vi.stubGlobal('fetch', unexpectedFetch);
+  mockProviderDefaults();
   h = await seedDb({ skipDefaultSeries: true });
 });
 afterEach(() => {
-  h.cleanup();
-  vi.restoreAllMocks();
+  try {
+    // Hydration catches provider failures, so also assert that none occurred.
+    expect(unexpectedFetch).not.toHaveBeenCalled();
+  } finally {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    h.cleanup();
+  }
 });
 
 async function makeNovel(): Promise<number> {
@@ -181,6 +200,7 @@ describe('googlebooks_hydrate', () => {
     // Second run: v1 is now a catalog-only edition (NO_PAGES, ACAAJ id) → no real
     // cover; OL still finds nothing. The previously-stored placeholder must clear.
     vi.restoreAllMocks();
+    mockProviderDefaults();
     vi.spyOn(gb, 'searchSeriesVolumes').mockResolvedValue([
       { id: 'v1ACAAJ', title: 'Solo Leveling, Vol. 1 (novel)', publisher: 'Yen Press', description: 'd1', pageCount: 300, language: 'en', coverUrl: 'https://books.google.com/c?id=v1placeholder', viewability: 'NO_PAGES', isbn: null },
       { id: 'v2ACAAJ', title: 'Solo Leveling, Vol. 2 (novel)', publisher: 'Yen Press', description: 'd2', pageCount: 320, language: 'en', coverUrl: 'https://books.google.com/c?id=v2placeholder', viewability: 'NO_PAGES', isbn: null },

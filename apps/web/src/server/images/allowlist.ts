@@ -29,7 +29,13 @@ export const ALLOWED_IMAGE_HOSTS = new Set<string>([
   'books.google.com',
   'books.googleusercontent.com',
   'openapi.bnf.fr',
+  'bdi.dlpdomain.com',
 ]);
+
+/** Hosts used by the existing BnF cover candidates; validation is mandatory. */
+export function isFrenchCoverHost(host: string): boolean {
+  return host === 'openapi.bnf.fr' || host === 'bdi.dlpdomain.com';
+}
 
 /**
  * Allowlisted hosts that sit behind a Cloudflare "Just a moment" challenge. A
@@ -65,7 +71,8 @@ export function upstreamImageHeaders(host: string): Record<string, string> {
 
 /**
  * Rewrite a library cover URL to load through the caching `/api/img` proxy when
- * caching is enabled and the URL host is allowlisted; otherwise return the URL
+ * caching is enabled and the URL host is allowlisted. French candidates always
+ * use the proxy for validation, even with caching disabled. Otherwise return the URL
  * unchanged so it loads direct (never broken).
  *
  * Null/empty values pass through untouched.
@@ -74,7 +81,7 @@ export function libraryCoverSrc(
   url: string | null | undefined,
   cacheEnabled: boolean,
 ): string | null | undefined {
-  if (!url || !cacheEnabled) return url;
+  if (!url) return url;
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -82,6 +89,7 @@ export function libraryCoverSrc(
     return url;
   }
   if (parsed.protocol !== 'https:' || !isAllowlistedImageHost(parsed.host)) return url;
+  if (!cacheEnabled && !isFrenchCoverHost(parsed.host)) return url;
   return `/api/img?u=${encodeURIComponent(url)}`;
 }
 
