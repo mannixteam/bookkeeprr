@@ -367,6 +367,8 @@ function bestRelationForQuery(record: ParsedRecord, query: string): string | nul
   if (!q) return null;
   const qTokens = q.split(' ').filter((t) => t.length >= 3);
   const candidates = record.relations
+    // A query match does not turn a publisher collection into a work/series.
+    .filter(relation => !/^\s*collection\s*:/i.test(relation))
     .map(cleanRelation)
     .filter((r) => r.length >= 3 && r.length <= 140)
     .map((r) => ({ raw: r, normalized: norm(r) }))
@@ -380,7 +382,7 @@ function bestRelationForQuery(record: ParsedRecord, query: string): string | nul
 }
 
 function seriesGroup(record: ParsedRecord, query: string) {
-  // A publisher's Collection label alone is not proof of a numbered series.
+  // A publisher's Collection label alone is not proof of a series.
   const candidates = record.relations
     .filter(relation => /^\s*(?:appartient\s+[àa]\s*:|titre\s+d['’]ensemble\s*:?)\s*/i.test(relation))
     .map(cleanRelation)

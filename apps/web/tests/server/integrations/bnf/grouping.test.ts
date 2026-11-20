@@ -86,3 +86,24 @@ it('accepts equivalent explicit series labels as one title', async () => {
   expect(hits).toHaveLength(1);
   expect(hits[0]?.volumeCount).toBe(2);
 });
+
+it.each(['Collection : Mirage', '  collection: Mirage romans graphiques'])('does not group unnumbered works solely by a query-matching publisher collection: %s', async relation => {
+  const common = { creator: 'Alice Martin', relation };
+  const a = record(1, { ...common, title: 'La traversée' });
+  const b = record(2, { ...common, title: 'Le retour' });
+  for (const xml of [a + b, b + a]) {
+    const hits = await search(xml);
+    expect(hits.map(hit => hit.name).sort()).toEqual(['La traversée', 'Le retour']);
+    expect(hits.map(hit => hit.volumeCount)).toEqual([1, 1]);
+    expect(hits.flatMap(hit => hit.volumes).map(volume => volume.number)).toEqual([null, null]);
+    expect(hits.flatMap(hit => hit.volumes).map(volume => volume.ark).sort())
+      .toEqual(['ark:/12148/cb12345671x', 'ark:/12148/cb12345672x']);
+  }
+});
+it('retains an explicit series for unnumbered albums despite a query-matching collection', async () => {
+  const common = { creator: 'Alice Martin', relation: ['Collection : Mirage', 'Titre d’ensemble : Cycle bleu'] };
+  const hits = await search(record(1, { ...common, title: 'La traversée' }) + record(2, { ...common, title: 'Le retour' }));
+  expect(hits).toHaveLength(1);
+  expect(hits[0]).toMatchObject({ name: 'Cycle bleu', volumeCount: 2 });
+  expect(hits[0]?.volumes.map(volume => volume.number)).toEqual([null, null]);
+});
