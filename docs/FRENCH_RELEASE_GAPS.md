@@ -35,6 +35,10 @@ These are finite acceptance criteria proposed from the recorded limits, not new 
 - Image decoding proves a valid image, not semantic cover/edition identity. Illustrated-placeholder recognition is a separate unfinished requirement, not a limit to silently accept as completed.
 - The original thirteen full-suite failures were resolved in the recorded combined rerun. Collection grouping, collection ordinals and collection-only hydration are also completed. This checklist reports no new failing test or newly reproduced application defect.
 
+## Build/startup attempt after this assessment
+
+The local attempt on `09e387c` was blocked before build because container tooling and the local Docker socket were absent. See [FRENCH_DOCKER_VALIDATION.md](FRENCH_DOCKER_VALIDATION.md). Gap R is still open; the checkpoint now selects a dedicated non-publishing CI runner check. The original selection below remains the historical rationale.
+
 ## One executable next step
 
 **Validate the production Docker build and startup in a disposable development environment.** This addresses R without requiring unavailable bibliographic/placeholder samples. Inspect only the existing build/runtime instructions needed for that check; use an isolated local image tag, fresh temporary storage and a non-production port. Disable automatic provider/download activity, publish nothing, and never connect to the user's VM or mount production data. Record the exact revision, commands, build result, startup/health result and cleanup. If the development runner lacks Docker or build prerequisites, record the precise blocker without substituting production access or claiming success. Do not begin M/C/G/P or repeat their probes in that step.
