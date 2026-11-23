@@ -39,3 +39,50 @@ it('preserves existing numbered volumes and known totals when only unnumbered al
   expect(await listVolumesBySeries(id)).toMatchObject([{ number: 1, title: 'Titre local' }]);
   expect((await getSeries(id))?.totalVolumes).toBe(8);
 });
+
+it('preserves library rows and totals across repeated real-client hydration of a numbered publisher collection', async () => {
+  const id = await series(8);
+  // Include the collection number itself to catch accidental metadata overwrites.
+  await insertVolume({ seriesId: id, number: 7, title: 'Titre local conservé' });
+  const beforeVolumes = await listVolumesBySeries(id);
+  const queries: string[] = [];
+  const unexpected: string[] = [];
+  const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const query = url.searchParams.get('query') ?? '';
+    queries.push(query);
+    if (url.hostname !== 'catalogue.bnf.fr' || ![
+      `bib.persistentid any "${ark}"`,
+      '(bib.title all "Série test") and (bib.recordtype any "mon")',
+      '(bib.title all "Album nommé") and (bib.recordtype any "mon")',
+    ].includes(query)) {
+      unexpected.push(url.toString());
+      throw new Error('Unexpected provider request');
+    }
+    return new Response(`<searchRetrieveResponse><records><record><recordData><dc>
+      <identifier>${ark}</identifier><title>Album nommé</title>
+      <publisher>Delcourt</publisher><language>fre</language>
+      <relation>Collection : Romans graphiques ; 7</relation>
+      </dc></recordData></record></records></searchRetrieveResponse>`);
+  });
+  vi.stubGlobal('fetch', fetcher);
+  try {
+    for (const jobId of [1, 2]) {
+      expect(await metadataHydrateDescriptor.handler({ seriesId: id }, jobId)).toEqual({ volumesAdded: 0 });
+      expect(await listVolumesBySeries(id)).toEqual(beforeVolumes);
+      const hydrated = await getSeries(id);
+      expect(hydrated?.totalVolumes).toBe(8);
+      expect(hydrated?.titleEnglish).toBe('Album nommé');
+      expect(hydrated?.extraSearchTermsJson).toBe(withBnfArk('[]', ark));
+    }
+    expect(unexpected).toEqual([]);
+    expect(queries).toEqual([
+      `bib.persistentid any "${ark}"`,
+      '(bib.title all "Série test") and (bib.recordtype any "mon")',
+      `bib.persistentid any "${ark}"`,
+      '(bib.title all "Album nommé") and (bib.recordtype any "mon")',
+    ]);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
