@@ -111,6 +111,8 @@ function cleanRelation(raw: string): string {
 }
 
 function ordinalFromRelation(relation: string): number | null {
+  // Publisher collection sequences do not number albums within a series.
+  if (/^\s*collection\s*:/i.test(relation)) return null;
   const explicit = relation.match(/\b(?:tomes?|t\.|volumes?|vol\.?)\s*0*(\d{1,3})\b/i);
   if (explicit?.[1]) {
     const n = Number(explicit[1]);
