@@ -58,6 +58,8 @@ describe('Discover empty results', () => {
     vi.stubGlobal('fetch', stubFetch());
     renderWithQuery(<DiscoverClient />);
     expect(screen.getByPlaceholderText(/AniList/)).toBeTruthy();
+    expect(screen.getByText('Éditions françaises par titre')).toBeTruthy();
+    expect(screen.getByText('Édition française par ISBN')).toBeTruthy();
   });
 
   it('does not show Clear filters button when results are present', async () => {

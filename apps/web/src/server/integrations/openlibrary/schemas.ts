@@ -92,3 +92,14 @@ export const EditionsResponse = z.object({
   entries: z.array(EditionEntry),
 });
 export type EditionEntryT = z.infer<typeof EditionEntry>;
+
+/** Edition-level language/ISBN fields must not be inferred from the parent work. */
+export const FrenchIsbnEditionRecord = z.object({
+  key: z.string().regex(/^\/books\/OL\d+M$/),
+  title: z.string().trim().min(1),
+  isbn_10: z.array(z.string()).optional(),
+  isbn_13: z.array(z.string()).optional(),
+  languages: z.array(z.object({ key: z.string() })).optional(),
+  publishers: z.array(z.string()).optional(),
+  publish_date: z.string().optional(),
+});

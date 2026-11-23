@@ -1,0 +1,60 @@
+# French Discover browser validation
+
+## 2026-11-19: mixed and partial title results
+
+Test commit `39631ddd64f4734b71a0df769e87b387e897339f`. [Browser run 44625532149 / job 135918207911](https://github.com/mannixteam/bookkeeprr/actions/runs/44625532149/job/135918207911): **4 scenarios passed, 0 failed**, including the two new supplementation scenarios, Chrome **157.0.8103.78**, on the exact test commit.
+
+Reused the existing Chrome workflow, real React composition, compiled application CSS and request interception. The original verification/error/retry/explicit-POST scenario is unchanged. A separate browser context adds one supplementation scenario at each existing viewport (1440×900 and 768×1024):
+
+- Return `supplement: "failed"` with a retained BnF edition. Assert the warning names the unavailable Open Library supplement, identifies BnF-only results and offers retry. Check the entire warning is in the viewport after scrolling, its text wraps, and the page has no horizontal overflow.
+- Verify the single retained edition's title, canonical ISBN and exact BnF source URL. Reach its selection button with Tab and visible focus, then activate it with Enter.
+- Require a new exact-ISBN GET, display its different fresh title/ARK and the same canonical ISBN, and load quality profiles. The add control becomes available, but no POST occurs.
+- Reach the title-search button by keyboard and retry. Return two same-title editions with different EANs, BnF first and Open Library second. Assert both rows' order, ISBNs, source names and exact URLs, the non-exhaustive result count, absence of the old warning, and no horizontal overflow.
+- Assert exactly two title reads, one ISBN verification and one profile read; no POST or unmatched request in the added scenario. All unmatched requests abort, including live provider traffic.
+
+No runtime code, dependency, lockfile, workflow or VM change. Local `node --check apps/web/tests/browser/french-discover.mjs` and `git diff --check` passed. Reused CI Chrome instead of repeating the documented local browser provisioning failure. These checks verify mocked panel behavior, not live catalog coverage, the surrounding authenticated page, a physical tablet or a real library import.
+
+## 2026-11-16: passed on desktop and tablet viewports
+
+[GitHub Actions run 43927424006, job 133510475455](https://github.com/mannixteam/bookkeeprr/actions/runs/43927424006/job/133510475455) completed successfully on commit `f47cba95e84245437df666b2729daf4292817390`. The log reports Chrome **157.0.8103.50** on the Ubuntu runner. Both 1440×900 and 768×1024 passed; zero failed.
+
+The test bundles the unchanged FrenchEditionDiscovery React components and the application's compiled CSS. Playwright serves the page, assets and deterministic API fixtures by request interception in a new browser context per viewport. Unmatched requests abort and fail the test. No application server, library database, live provider or deployment is involved. To reproduce on a development runner with Chrome installed, install the frozen workspace dependencies and run `node tests/browser/french-discover.mjs` from `apps/web`.
+
+At each size, the keyboard reached the title panel, search field, ISBN verification, profile and add controls with visible focus. The page had no horizontal overflow before submission. Selecting Mirage (Open Library) displayed a fresh BnF identity. A simulated 502 on the second lookup removed the old title, profile and add button. Retrying verified the ISBN again; choosing Archives FR sent no POST until Enter activated Add. The only POST contained ISBN 9780306406157, source bnf, ARK ark:/12148/cb99999999x and profile ID 8. The returned library link pointed to /library/42.
+
+This covers the panels in a real desktop browser at two sizes, not the surrounding authenticated page, a physical tablet, live metadata or a real import. The local host had Chromium but refused its startup socket; the CI run above supplied the browser evidence without repeating the earlier download. No product fix was needed.
+
+## 2026-09-29: historical provisioning attempt
+
+Status: **BLOCKED before browser execution**, not a passing browser assessment.
+Assessed commit: `752f7bb75a574fca9bb07e7851f6101dfa5a64fe` on `chore/work-checkpoint-system`; clean initial Git state and identical fetched head.
+
+## Setup evidence
+
+The installed repository dependency is Playwright 1.60.0. A headless Chromium launch failed because `/root/.cache/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-linux64/chrome-headless-shell` did not exist. No `chromium`, `chromium-browser` or `google-chrome` executable was found on PATH or at the checked standard locations.
+
+From `apps/web`, `corepack pnpm@9.15.0 exec playwright install chromium` attempted Chrome for Testing 148.0.7778.96 / revision 1223 from `https://cdn.playwright.dev/builds/cft/148.0.7778.96/linux64/chrome-linux64.zip`. The installer performed its own retries and exited 1: `End of central directory record signature not found. Either not a zip file, or file is truncated.` No usable browser was installed. A separate minimal attempt, `timeout 40s node node_modules/@playwright/test/cli.js install chromium --only-shell`, exited 124 at the imposed deadline. Both processes finished.
+
+These observations establish a local browser provisioning blocker, not a product regression or a claim that every remote browser environment is unavailable. No alternate download transport or live catalog probe was attempted. The existing general E2E configuration targets localhost:13000 and its setup requires a healthy application; the Docker E2E launcher was not started. No isolated application server was started after the browser prerequisite failed.
+
+## Planned scenarios — all NOT RUN in a browser
+
+Target desktop 1440×900 and tablet portrait 768×1024; these are proposed viewports, not observed device results.
+
+- Open the French title panel and submit using keyboard navigation.
+- Display deterministic edition fixtures, then select an ISBN without any automatic POST.
+- Return a fresh ISBN identity different from the title candidate, select a quality profile and explicitly add; verify the submitted fresh identity/profile.
+- After an earlier successful verification, return a retryable lookup error; assert old add controls disappear, then retry successfully.
+- Inspect wrapping, overflow, visible focus and access to controls at both viewports.
+
+Reuse the Mirage / ISBN 9780306406157 fixtures and composed flow in `tests/components/french-title.test.tsx`. API responses must be mocked and unmatched API/provider traffic blocked; no production data or VM access is needed. No screenshots, browser assertions or visual approval are claimed.
+
+## Executed relevant checks
+
+From `apps/web`:
+```bash
+node node_modules/vitest/vitest.mjs run tests/components/french-title.test.tsx tests/components/french-isbn.test.tsx tests/components/discover-empty.test.tsx
+```
+Result: **32 passed, 0 failed, 3 files**, exit 0, 1.96 s, Vitest 4.1.8. This executes the existing component regressions with mocked HTTP in jsdom; it is not a browser/layout test. No tests were added, changed, disabled or weakened. No runtime code, dependency, lockfile or CI configuration changed. `git diff --check`: PASS.
+
+The earlier full-suite and remote French CI evidence remains valid for its recorded commits; neither was repeated. Browser validation remains open alongside the other release limitations. No deployment, Docker operation or VM access occurred.

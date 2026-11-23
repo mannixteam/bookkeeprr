@@ -1,0 +1,78 @@
+{
+  "startedAt": "2026-09-28T12:40:52.117Z",
+  "recordedAt": "2026-09-28T12:41:52.177Z",
+  "commit": "5a33c8112727a505344727a1b28605756ada917a",
+  "node": "v24.19.0",
+  "titles": [
+    "Les Cinq Terres",
+    "Ekhö",
+    "Les Légendaires"
+  ],
+  "requests": [
+    {
+      "context": "Les Cinq Terres: title",
+      "url": "https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=%28bib.title+all+%22Les+Cinq+Terres%22%29+and+%28bib.recordtype+any+%22mon%22%29&recordSchema=dublincore&maximumRecords=100&startRecord=1",
+      "startedAt": "2026-09-28T12:40:52.154Z",
+      "error": {
+        "name": "TimeoutError",
+        "message": "The operation was aborted due to timeout",
+        "code": 23
+      },
+      "elapsedMs": 20009
+    },
+    {
+      "context": "Ekhö: title",
+      "url": "https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=%28bib.title+all+%22Ekh%C3%B6%22%29+and+%28bib.recordtype+any+%22mon%22%29&recordSchema=dublincore&maximumRecords=100&startRecord=1",
+      "startedAt": "2026-09-28T12:41:12.168Z",
+      "error": {
+        "name": "TimeoutError",
+        "message": "The operation was aborted due to timeout",
+        "code": 23
+      },
+      "elapsedMs": 20002
+    },
+    {
+      "context": "Les Légendaires: title",
+      "url": "https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=%28bib.title+all+%22Les+L%C3%A9gendaires%22%29+and+%28bib.recordtype+any+%22mon%22%29&recordSchema=dublincore&maximumRecords=100&startRecord=1",
+      "startedAt": "2026-09-28T12:41:32.173Z",
+      "error": {
+        "name": "TimeoutError",
+        "message": "The operation was aborted due to timeout",
+        "code": 23
+      },
+      "elapsedMs": 20002
+    }
+  ],
+  "lookups": [
+    {
+      "title": "Les Cinq Terres",
+      "startedAt": "2026-09-28T12:40:52.150Z",
+      "titleError": {
+        "name": "BnfError",
+        "message": "BnF SRU request failed: The operation was aborted due to timeout"
+      },
+      "titleMs": 20013,
+      "isbnSkipped": "Title lookup failed; no returned edition to verify"
+    },
+    {
+      "title": "Ekhö",
+      "startedAt": "2026-09-28T12:41:12.168Z",
+      "titleError": {
+        "name": "BnfError",
+        "message": "BnF SRU request failed: The operation was aborted due to timeout"
+      },
+      "titleMs": 20002,
+      "isbnSkipped": "Title lookup failed; no returned edition to verify"
+    },
+    {
+      "title": "Les Légendaires",
+      "startedAt": "2026-09-28T12:41:32.173Z",
+      "titleError": {
+        "name": "BnfError",
+        "message": "BnF SRU request failed: The operation was aborted due to timeout"
+      },
+      "titleMs": 20002,
+      "isbnSkipped": "Title lookup failed; no returned edition to verify"
+    }
+  ]
+}
